@@ -1,0 +1,53 @@
+{{- /* Full-content RSS feed (overrides PaperMod's). Article HTML is emitted in
+       <content:encoded> with every relative/root-relative src and href made
+       absolute, so DEV.to (which imports <content> first) and other readers
+       render images and links correctly off-site. <link>/<guid> are the
+       canonical site URLs. */ -}}
+{{- $authorName := "" }}
+{{- with site.Params.author }}{{ if reflect.IsMap . }}{{ with .name }}{{ $authorName = . }}{{ end }}{{ else }}{{ $authorName = . }}{{ end }}{{ end }}
+{{- $pctx := . }}
+{{- if .IsHome }}{{ $pctx = site }}{{ end }}
+{{- $pages := slice }}
+{{- if or $.IsHome $.IsSection }}{{ $pages = $pctx.RegularPages }}{{ else }}{{ $pages = $pctx.Pages }}{{ end }}
+{{- $pages = where $pages "Params.hiddenInRss" "!=" true }}
+{{- if .IsHome }}{{ with site.Params.mainSections }}{{ $pages = where $pages "Section" "in" . }}{{ end }}{{ end }}
+{{- $limit := site.Config.Services.RSS.Limit }}
+{{- if ge $limit 1 }}{{ $pages = $pages | first $limit }}{{ end }}
+{{- printf "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>" | safeHTML }}
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>{{ if or .IsHome (eq .Title site.Title) }}{{ site.Title }}{{ else }}{{ .Title }} on {{ site.Title }}{{ end }}</title>
+    <link>{{ .Permalink }}</link>
+    <description>{{ with site.Params.description }}{{ . }}{{ else }}Recent content on {{ site.Title }}{{ end }}</description>
+    <generator>Hugo</generator>
+    <language>{{ site.Language.Lang }}</language>
+    {{- with site.Copyright }}
+    <copyright>{{ . | markdownify | plainify }}</copyright>{{ end }}
+    {{- if $pages }}
+    <lastBuildDate>{{ (index $pages.ByLastmod.Reverse 0).Lastmod.Format "Mon, 02 Jan 2006 15:04:05 -0700" | safeHTML }}</lastBuildDate>{{ end }}
+    {{- with .OutputFormats.Get "RSS" }}
+    {{ printf "<atom:link href=%q rel=\"self\" type=%q />" .Permalink .MediaType | safeHTML }}
+    {{- end }}
+    {{- range $pages }}
+    {{- if and (ne .Layout `search`) (ne .Layout `archives`) }}
+    {{- /* 1) root-relative ("/x") → site-absolute; 2) page-relative ("x.png") → page-absolute.
+           Anything already containing a scheme (":") or starting with "#" is left alone. */ -}}
+    {{- $c := .Content }}
+    {{- $c = replaceRE `(src|href)="/([^"]*)"` (printf `$1="%s$2"` site.BaseURL) $c }}
+    {{- $c = replaceRE `(src|href)="([^"/:#][^":]*)"` (printf `$1="%s$2"` .Permalink) $c }}
+    <item>
+      <title>{{ .Title }}</title>
+      <link>{{ .Permalink }}</link>
+      <guid isPermaLink="true">{{ .Permalink }}</guid>
+      <pubDate>{{ .PublishDate.Format "Mon, 02 Jan 2006 15:04:05 -0700" | safeHTML }}</pubDate>
+      {{- with $authorName }}
+      <dc:creator>{{ . }}</dc:creator>{{ end }}
+      {{- range .Params.tags }}
+      <category>{{ . }}</category>{{ end }}
+      <description>{{ with .Description }}{{ . | html }}{{ else }}{{ .Summary | plainify | html }}{{ end }}</description>
+      <content:encoded>{{ printf "<![CDATA[%s]]>" $c | safeHTML }}</content:encoded>
+    </item>
+    {{- end }}
+    {{- end }}
+  </channel>
+</rss>

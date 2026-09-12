@@ -1,0 +1,115 @@
+baseURL = "https://ricardojimenezperis.com/"
+locale = "en-US"
+title = "Inside DBs — Ricardo Jiménez-Peris"
+theme = "PaperMod"
+
+enableRobotsTXT = true
+buildDrafts = false
+buildFuture = false
+buildExpired = false
+enableEmoji = false
+
+# Keep the drafting workspace (../posts) and figure sources out of the build
+ignoreFiles = ["figures/.*"]
+
+[pagination]
+  pagerSize = 10
+
+[minify]
+  disableXML = true
+  minifyOutput = true
+
+[params]
+  env = "production"
+  description = "Notes on how databases actually work, one system at a time. By Ricardo Jiménez-Peris."
+  author = "Ricardo Jiménez-Peris"
+  defaultTheme = "auto"
+  disableThemeToggle = false
+  ShowReadingTime = true
+  ShowShareButtons = false
+  ShowPostNavLinks = true
+  ShowBreadCrumbs = true
+  ShowCodeCopyButtons = true
+  ShowWordCount = false
+  ShowRssButtonInSectionTermList = true
+  ShowToc = true
+  TocOpen = false
+  disableSpecial1stPost = false
+  disableScrollToTop = false
+  comments = false
+  hidemeta = false
+  hideSummary = false
+  showtoc = true
+  mainSections = ["systems"]
+
+  [params.homeInfoParams]
+    Title = "Inside DBs — Ricardo Jiménez-Peris"
+    Content = """
+Notes on how databases actually work, one system at a time.
+
+Each series here explores a topic in database internals through the architecture of real systems. The first focuses on FoundationDB — following a transaction from start to finish and using that path to explain how the system fits together.
+"""
+
+  [[params.socialIcons]]
+    name = "linkedin"
+    url = "https://www.linkedin.com/in/ricardojimenezperis/"
+  [[params.socialIcons]]
+    name = "github"
+    url = "https://github.com/ricardojimenezperis"
+  [[params.socialIcons]]
+    name = "rss"
+    url = "/index.xml"
+
+  [params.assets]
+    disableHLJS = true
+
+  [params.label]
+    text = "Inside DBs · Ricardo Jiménez-Peris"
+
+  [params.fuseOpts]
+    isCaseSensitive = false
+    shouldSort = true
+    location = 0
+    distance = 1000
+    threshold = 0.4
+    minMatchCharLength = 0
+    keys = ["title", "permalink", "summary", "content"]
+
+[menu]
+  [[menu.main]]
+    identifier = "systems"
+    name = "Systems"
+    url = "/systems/"
+    weight = 10
+  [[menu.main]]
+    identifier = "about"
+    name = "About"
+    url = "/about/"
+    weight = 20
+  [[menu.main]]
+    identifier = "search"
+    name = "Search"
+    url = "/search/"
+    weight = 30
+
+copyright = "© Ricardo Jiménez-Peris"
+
+[services]
+  [services.rss]
+    limit = 20
+
+[outputs]
+  home = ["HTML", "RSS", "JSON"]
+
+[markup]
+  [markup.goldmark.renderer]
+    unsafe = true
+  [markup.highlight]
+    noClasses = false
+    codeFences = true
+    guessSyntax = true
+    lineNos = false
+    style = "monokai"
+  [markup.tableOfContents]
+    startLevel = 2
+    endLevel = 3

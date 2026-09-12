@@ -1,0 +1,7 @@
+.figure-caption { text-align: center; margin: -0.5rem 0 1.5rem; font-size: 0.9em; color: var(--secondary); }
+.post-content figure { margin: 1.5rem 0 0; }
+.post-content figure img { width: 100%; }
+.post-content table { display: table; margin: 1rem auto; }
+@media (max-width: 640px) {
+  .logo a { font-size: 17px; white-space: nowrap; }
+}
