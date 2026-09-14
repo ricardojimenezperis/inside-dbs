@@ -56,3 +56,9 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Notify IndexNow
+        env:
+          INDEXNOW_KEY: 090439f987cf705792d4250c535738ae
+        run: sleep 90 && bash scripts/indexnow.sh

@@ -48,3 +48,7 @@ Pipeline per article: site (canonical, always first) → LinkedIn native post (i
 - `seoTitle` in front matter is a short search title (≤ ~40 chars, e.g. `FoundationDB Transaction Architecture`); `title` stays the narrative H1 and is what lists, RSS, OG cards and Medium/DEV imports use.
 - Implemented in `layouts/_partials/page_title.html`, called from `layouts/_partials/head.html`, which is a verbatim copy of PaperMod's `head.html` (theme commit d376885) with only the `<title>` line changed. When updating the theme, re-copy `head.html` and re-apply that one line.
 - Files must stay UTF-8 without BOM (the `·` separator).
+
+## IndexNow
+- Key file `static/090439f987cf705792d4250c535738ae.txt` (content = the key) is served at the site root. `scripts/indexnow.sh` reads the live sitemap and POSTs every URL to api.indexnow.org; the deploy workflow runs it after each successful deploy (step "Notify IndexNow", with the key in `INDEXNOW_KEY`). The key is public by design; rotating it means a new file + updating the workflow.
+- Manual run: `INDEXNOW_KEY=090439f987cf705792d4250c535738ae bash scripts/indexnow.sh`.
