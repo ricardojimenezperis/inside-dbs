@@ -41,3 +41,4 @@ Pipeline per article: site (canonical, always first) → LinkedIn native post (i
 ## RSS and the `channels` field
 - `layouts/rss.xml` overrides the theme's feed: full article HTML in `<content:encoded>` with all `src`/`href` made absolute, `<link>`/`<guid>` = canonical site URL, home feed limited to `mainSections` (posts only, no About) and to the last 20 items. DEV.to imports from `https://ricardojimenezperis.com/index.xml` and uses the item link as canonical.
 - `channels` in front matter is an editorial checklist, nothing reads it: keep only the channels the article should go to, from `linkedin`, `medium`, `dev`, `fdb-forum`, `hn`, `lobsters`. Do not automate publishing from it.
+- Post covers: `cover.jpg` (≈1800 px wide JPEG) next to `index.md`, declared in `[cover]` front matter; PaperMod shows it at the top of the post, on list cards and as the social-share image. Sources stay in `figures/<slug>/`.

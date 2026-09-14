@@ -9,10 +9,11 @@ series = ["FoundationDB"]
 channels = ["linkedin", "medium", "dev", "fdb-forum", "hn", "lobsters"]
 ShowToc = true
 [cover]
-  image = "transaction-lifecycle.png"
-  alt = "FoundationDB transaction lifecycle"
+  image = "cover.jpg"
+  alt = "An isometric city where a transaction travels FoundationDB's commit path: GRV proxy, commit proxy, resolvers, TLogs and storage servers"
   relative = true
-  hidden = true
+  hidden = false
+  hiddenInList = false
 +++
 
 FoundationDB is a transactional database with an unusual shape: its architecture separates transaction processing from storage, allowing the two to scale independently. There is another database, LeanXcale, that took the same route. The two share enough that they look like twins who agreed on the overall approach, were then separated, and made slightly different decisions because they were solving different problems. That story is for another post. Here the goal is to introduce FoundationDB's components by following a transaction through them, from the moment it starts to the moment its writes become readable. The next post will explain FoundationDB's five-second read-version window and how it constrains transactions.
