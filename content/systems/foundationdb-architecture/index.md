@@ -1,5 +1,6 @@
 +++
 title = "FoundationDB: the architecture, seen through a transaction"
+seoTitle = "FoundationDB Transaction Architecture"
 date = 2026-09-12T10:00:00+02:00
 draft = false
 description = "FoundationDB's components introduced by following one transaction through them — from read version to readable."

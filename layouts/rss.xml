@@ -16,7 +16,7 @@
 {{- printf "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>" | safeHTML }}
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
   <channel>
-    <title>{{ if or .IsHome (eq .Title site.Title) }}{{ site.Title }}{{ else }}{{ .Title }} on {{ site.Title }}{{ end }}</title>
+    <title>{{ if or .IsHome (eq .Title site.Title) }}{{ site.Title }} · {{ site.Params.author }}{{ else }}{{ .Title }} on {{ site.Title }} · {{ site.Params.author }}{{ end }}</title>
     <link>{{ .Permalink }}</link>
     <description>{{ with site.Params.description }}{{ . }}{{ else }}Recent content on {{ site.Title }}{{ end }}</description>
     <generator>Hugo</generator>

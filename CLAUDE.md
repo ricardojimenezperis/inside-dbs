@@ -42,3 +42,9 @@ Pipeline per article: site (canonical, always first) → LinkedIn native post (i
 - `layouts/rss.xml` overrides the theme's feed: full article HTML in `<content:encoded>` with all `src`/`href` made absolute, `<link>`/`<guid>` = canonical site URL, home feed limited to `mainSections` (posts only, no About) and to the last 20 items. DEV.to imports from `https://ricardojimenezperis.com/index.xml` and uses the item link as canonical.
 - `channels` in front matter is an editorial checklist, nothing reads it: keep only the channels the article should go to, from `linkedin`, `medium`, `dev`, `fdb-forum`, `hn`, `lobsters`. Do not automate publishing from it.
 - Post covers: `cover.jpg` (≈1800 px wide JPEG) next to `index.md`, declared in `[cover]` front matter; PaperMod shows it at the top of the post, on list cards and as the social-share image. Sources stay in `figures/<slug>/`.
+
+## `<title>` convention
+- Home: `Inside DBs · Ricardo Jiménez-Peris`. Every other page: `Ricardo Jiménez-Peris · <seoTitle, else title>` — the name goes first so search-engine truncation never drops it; `Inside DBs` is not repeated on posts (site name reaches search results via `site.Title`/structured data).
+- `seoTitle` in front matter is a short search title (≤ ~40 chars, e.g. `FoundationDB Transaction Architecture`); `title` stays the narrative H1 and is what lists, RSS, OG cards and Medium/DEV imports use.
+- Implemented in `layouts/_partials/page_title.html`, called from `layouts/_partials/head.html`, which is a verbatim copy of PaperMod's `head.html` (theme commit d376885) with only the `<title>` line changed. When updating the theme, re-copy `head.html` and re-apply that one line.
+- Files must stay UTF-8 without BOM (the `·` separator).

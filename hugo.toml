@@ -1,6 +1,6 @@
 baseURL = "https://ricardojimenezperis.com/"
 locale = "en-US"
-title = "Inside DBs — Ricardo Jiménez-Peris"
+title = "Inside DBs"
 theme = "PaperMod"
 
 enableRobotsTXT = true
@@ -43,7 +43,7 @@ ignoreFiles = ["figures/.*"]
   mainSections = ["systems"]
 
   [params.homeInfoParams]
-    Title = "Inside DBs — Ricardo Jiménez-Peris"
+    Title = "Inside DBs · Ricardo Jiménez-Peris"
     Content = """
 Notes on how databases actually work, one system at a time.
 

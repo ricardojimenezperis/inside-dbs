@@ -1,0 +1,9 @@
+{{- /* <title> convention (see CLAUDE.md):
+       home  → "Inside DBs · <author>"
+       other → "<author> · <seoTitle | title>"   — author first so truncation never drops it. */ -}}
+{{- $author := site.Params.author -}}
+{{- if .IsHome -}}
+{{ site.Title }} · {{ $author }}
+{{- else -}}
+{{ $author }} · {{ .Params.seoTitle | default .Title }}
+{{- end -}}
