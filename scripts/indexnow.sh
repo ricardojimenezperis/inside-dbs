@@ -10,7 +10,7 @@ urls=$(curl -fsSL "$SITEMAP" | grep -o '<loc>[^<]*</loc>' | sed 's/<loc>//;s#</l
 count=$(printf '%s\n' "$urls" | grep -c . || true)
 if [ "$count" -eq 0 ]; then echo "no URLs found in $SITEMAP"; exit 1; fi
 
-json=$(printf '%s\n' "$urls" | python3 -c 'import json,sys,os; u=[l.strip() for l in sys.stdin if l.strip()]; h=os.environ["H"]; k=os.environ["INDEXNOW_KEY"]; print(json.dumps({"host":h,"key":k,"keyLocation":f"https://{h}/{k}.txt","urlList":u}))' H="$HOST")
+json=$(printf '%s\n' "$urls" | H="$HOST" python3 -c 'import json,sys,os; u=[l.strip() for l in sys.stdin if l.strip()]; h=os.environ["H"]; k=os.environ["INDEXNOW_KEY"]; print(json.dumps({"host":h,"key":k,"keyLocation":f"https://{h}/{k}.txt","urlList":u}))')
 
 code=$(curl -s -o /dev/null -w '%{http_code}' -X POST 'https://api.indexnow.org/indexnow' \
   -H 'Content-Type: application/json; charset=utf-8' -d "$json")
