@@ -21,7 +21,7 @@ ignoreFiles = ["figures/.*"]
 
 [params]
   env = "production"
-  description = "Notes on how databases actually work, one system at a time. By Ricardo Jimenez-Peris."
+  description = "Notes on how databases actually work. By Ricardo Jimenez-Peris."
   author = "Ricardo Jimenez-Peris"
   defaultTheme = "auto"
   disableThemeToggle = false
@@ -45,9 +45,9 @@ ignoreFiles = ["figures/.*"]
   [params.homeInfoParams]
     Title = "Inside DBs · Ricardo Jimenez-Peris"
     Content = """
-Notes on how databases actually work, one system at a time.
+Notes on how databases actually work.
 
-Each series here explores a topic in database internals through the architecture of real systems. The first focuses on FoundationDB — following a transaction from start to finish and using that path to explain how the system fits together.
+This blog is organized in series. The first one is about FoundationDB: it follows a transaction from start to finish and uses that path to explain how the system fits together. More series will follow.
 """
 
   [[params.socialIcons]]
