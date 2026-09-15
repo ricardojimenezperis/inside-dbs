@@ -21,8 +21,8 @@ ignoreFiles = ["figures/.*"]
 
 [params]
   env = "production"
-  description = "Notes on how databases actually work, one system at a time. By Ricardo Jiménez-Peris."
-  author = "Ricardo Jiménez-Peris"
+  description = "Notes on how databases actually work, one system at a time. By Ricardo Jimenez-Peris."
+  author = "Ricardo Jimenez-Peris"
   defaultTheme = "auto"
   disableThemeToggle = false
   ShowReadingTime = true
@@ -43,7 +43,7 @@ ignoreFiles = ["figures/.*"]
   mainSections = ["systems"]
 
   [params.homeInfoParams]
-    Title = "Inside DBs · Ricardo Jiménez-Peris"
+    Title = "Inside DBs · Ricardo Jimenez-Peris"
     Content = """
 Notes on how databases actually work, one system at a time.
 
@@ -68,7 +68,7 @@ Each series here explores a topic in database internals through the architecture
     disableHLJS = true
 
   [params.label]
-    text = "Inside DBs · Ricardo Jiménez-Peris"
+    text = "Inside DBs · Ricardo Jimenez-Peris"
 
   [params.fuseOpts]
     isCaseSensitive = false
@@ -96,7 +96,7 @@ Each series here explores a topic in database internals through the architecture
     url = "/search/"
     weight = 30
 
-copyright = "© Ricardo Jiménez-Peris"
+copyright = "© Ricardo Jimenez-Peris"
 
 [services]
   [services.rss]

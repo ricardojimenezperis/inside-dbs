@@ -1,6 +1,6 @@
 # Inside DBs — site conventions
 
-Personal site + technical blog of Ricardo Jiménez-Peris (Ric). Domain: https://ricardojimenezperis.com. English only.
+Personal site + technical blog of Ricardo Jimenez-Peris (Ric). Domain: https://ricardojimenezperis.com. English only.
 
 ## Stack
 - Hugo (extended) + PaperMod theme as a git submodule at `themes/PaperMod`.
@@ -62,7 +62,7 @@ Goal: get the article read, let Google accumulate authority on this domain, and 
 - Post covers: `cover.jpg` (≈1800 px wide JPEG) next to `index.md`, declared in `[cover]` front matter; PaperMod shows it at the top of the post, on list cards and as the social-share image. Sources stay in `figures/<slug>/`.
 
 ## `<title>` convention
-- Home: `Inside DBs · Ricardo Jiménez-Peris`. Every other page: `Ricardo Jiménez-Peris · <seoTitle, else title>` — the name goes first so search-engine truncation never drops it; `Inside DBs` is not repeated on posts (site name reaches search results via `site.Title`/structured data).
+- Home: `Inside DBs · Ricardo Jimenez-Peris`. Every other page: `Ricardo Jimenez-Peris · <seoTitle, else title>` — the name goes first so search-engine truncation never drops it; `Inside DBs` is not repeated on posts (site name reaches search results via `site.Title`/structured data).
 - `seoTitle` in front matter is a short search title (≤ ~40 chars, e.g. `FoundationDB Transaction Architecture`); `title` stays the narrative H1 and is what lists, RSS, OG cards and Medium/DEV imports use.
 - Implemented in `layouts/_partials/page_title.html`, called from `layouts/_partials/head.html`, which is a verbatim copy of PaperMod's `head.html` (theme commit d376885) with only the `<title>` line changed. When updating the theme, re-copy `head.html` and re-apply that one line.
 - Files must stay UTF-8 without BOM (the `·` separator).

@@ -6,7 +6,7 @@ hidemeta = true
 ShowBreadCrumbs = false
 +++
 
-I'm [Ricardo Jiménez-Peris](https://www.linkedin.com/in/ricardojimenezperis/) — Ric. I've spent most of my career researching and building distributed database systems.
+I'm [Ricardo Jimenez-Peris](https://www.linkedin.com/in/ricardojimenezperis/) — Ric. I've spent most of my career researching and building distributed database systems.
 
 For 25 years I was an academic researcher at the Universidad Politécnica de Madrid, working on distributed databases, especially replication and MVCC. I also taught distributed systems and spent a postdoc at ETH Zürich with Gustavo Alonso. During the last five of those years, I built the prototype that eventually became [LeanXcale](https://www.leanxcale.com/).
 
