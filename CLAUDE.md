@@ -12,7 +12,7 @@ Personal site + technical blog of Ricardo Jiménez-Peris (Ric). Domain: https://
 - `content/about.md` — bio.
 - `content/systems/<slug>/index.md` — one page bundle per article; images live next to `index.md` and are referenced relatively (`{{< figure src="x.png" >}}`).
 - `figures/<slug>/` — editable figure sources (`.pptx`) and PDF exports. Not published (`ignoreFiles` in `hugo.toml`). The published PNG is exported from the pptx at ≥ 2000 px wide.
-- Post drafts are written in the sibling folder `../posts/` (outside this repo) and copied here when ready.
+- Post drafts and all working material live in the sibling folder `../posts/<NN-slug>/` (outside this repo), one folder per article — draft versions, figure sources, cover illustration sources, LinkedIn/forum texts. Never drop files in `../posts/` itself. Copy into this repo only what the site needs.
 
 ## Writing conventions
 - Articles are structured as "follow a transaction through the system"; components are introduced by what they do.
@@ -28,15 +28,33 @@ Personal site + technical blog of Ricardo Jiménez-Peris (Ric). Domain: https://
 4. `hugo server -D` to check, then commit and push.
 
 ## Publishing schedule
-- **Weekly publishing time:** Wednesday at 08:00 `America/Los_Angeles` (the audience is largely on the US West Coast). Treat the Los Angeles time as the constant; never hard-code a Madrid time.
-- Madrid is normally 17:00, except during the short US/EU DST mismatch periods (mid-March; late October), when it is 16:00.
-- Ritual, in Pacific time: 07:30 publish the article on the site and check production; 08:00 LinkedIn post linking it, and HN / FoundationDB Forum at the same time when the article fits there.
+Canonical publication and distribution are separate events.
+- **Sunday (morning/midday, Madrid):** publish on the site (`draft = false`, commit, push). Same day: "Request indexing" for the URL in Google Search Console and Bing URL Inspection (IndexNow fires automatically from the deploy). Leaves 2–4 days for the original to be established before any full copy exists elsewhere.
+- **Monday:** check in Search Console that the URL is crawled/indexed and that the chosen canonical is ours; fix anything (OG image, sitemap, figure) with margin.
+- **Wednesday 08:00 `America/Los_Angeles`** (the audience is largely on the US West Coast; treat the LA time as the constant, never hard-code Madrid): public launch — LinkedIn post, HN, FDB Forum, per the Distribution table. Madrid is normally 17:00, 16:00 during the short US/EU DST mismatch weeks (mid-March; late October).
+- **Thursday/Friday:** syndication with full text — LinkedIn newsletter, Medium, DEV — only once the original shows as indexed.
+- DEV's RSS import must stay in "create as draft" mode (never auto-publish), otherwise the Sunday push would syndicate immediately.
 - Keep this rule for ~8–10 posts before tuning it with the site's own impression/engagement data.
 
 ## Distribution
-Pipeline per article: site (canonical, always first) → LinkedIn native post (idea + figure + 5–10 lines + link, never the full text) → FoundationDB Forum for FDB-specific pieces (short intro written for that community; pick Development / Using FoundationDB / Community by content) → HN / Lobsters / Reddit only when the piece fits (submit the site URL, never the Medium copy; keep self-promotion occasional) → Medium full text, open, imported via "Import a story" so canonical points here → DEV.to fed automatically from the site's RSS with canonical set.
-- Every channel gets its own text; only Medium/DEV carry the article verbatim.
-- No Substack as a second blog; a future email newsletter is a subscription to Inside DBs that links back here. Facebook is not a channel.
+Goal: get the article read, let Google accumulate authority on this domain, and let LinkedIn / the FDB community learn who Ric is and what he writes about — not to maximize clicks to the site.
+
+| Channel | When | What |
+|---|---|---|
+| ricardojimenezperis.com | First, always | Full original article; the canonical URL. |
+| LinkedIn post | Wed 08:00 PT (≈ 17:00 Madrid) | Native post (≤ 3,000 chars), 200–300 words + the cover illustration; must be worth reading without clicking. Structure: hook → technical idea → what path the article follows → a conclusion or open question → image. Never open with "I published a new post". Link at the end or in the first comment (first comment to start). |
+| LinkedIn newsletter "Inside DBs" | Thursday, once Search Console shows the original indexed | Full article as a newsletter issue (article format; subscribers get in-app, push and email notifications). First line: "Originally published on Inside DBs: <article URL>". Set the SEO title/description fields to the post's `seoTitle`/`description`. LinkedIn has no canonical, so never publish it before the original is indexed. |
+| Hacker News | Wed 17:00–17:05 Madrid | Original title + site URL only. Only posts with general interest. |
+| FoundationDB Forum | Wed 17:10–17:20 Madrid | Fairly complete technical summary, 400–700 words + image + link, written to provoke discussion and corrections from FDB implementers. Category by content (Development / Community). |
+| Medium | Once Search Console shows the URL indexed (Thu/Fri) | Full article, open, via "Import a story" from the site URL (canonical → site). |
+| DEV.to | Same as Medium | Full article via RSS import with canonical → site. |
+| Lobsters | Selectively | Title + link; only especially strong posts. Invitation needed. |
+| Reddit | Selectively | Native summary with a few technical ideas + link; never a weekly routine. |
+| Facebook | Not a channel | At most a share from the personal profile. |
+
+- Every channel gets its own text; only Medium/DEV carry the article verbatim. Medium/DEV are distribution, not funnels.
+- No Substack as a second blog; a future email newsletter is a subscription to Inside DBs that links back here.
+- Keep this routine for ~8–10 posts before optimizing channels or timing with own data.
 
 ## RSS and the `channels` field
 - `layouts/rss.xml` overrides the theme's feed: full article HTML in `<content:encoded>` with all `src`/`href` made absolute, `<link>`/`<guid>` = canonical site URL, home feed limited to `mainSections` (posts only, no About) and to the last 20 items. DEV.to imports from `https://ricardojimenezperis.com/index.xml` and uses the item link as canonical.

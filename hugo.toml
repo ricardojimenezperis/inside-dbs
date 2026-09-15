@@ -60,6 +60,10 @@ Each series here explores a topic in database internals through the architecture
     name = "rss"
     url = "/index.xml"
 
+  [params.cover]
+    linkFullImages = true
+    responsiveImages = true
+
   [params.assets]
     disableHLJS = true
 
