@@ -189,6 +189,10 @@
 {{- /* Misc */}}
 {{- if hugo.IsProduction | or (eq site.Params.env "production") }}
 {{- partial "google_analytics.html" . }}
+{{- /* inside-dbs: Cloudflare Web Analytics (cookie-less, production only) */ -}}
+{{- if hugo.IsProduction }}
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "818e9fdc2bf240848fdcf1fb518b6b35"}'></script>
+{{- end }}
 {{- partial "templates/opengraph.html" . }}
 {{- partial "templates/twitter_cards.html" . }}
 {{- partial "templates/schema_json.html" . }}
