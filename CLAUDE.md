@@ -79,6 +79,10 @@ The LinkedIn launch visual is a carousel (PDF document post), one page per stage
 - Implemented in `layouts/_partials/page_title.html`, called from `layouts/_partials/head.html`, which is a verbatim copy of PaperMod's `head.html` (theme commit d376885) with only the `<title>` line changed. When updating the theme, re-copy `head.html` and re-apply that one line.
 - Files must stay UTF-8 without BOM (the `·` separator).
 
+## Analytics
+- Cloudflare Web Analytics (cookie-less, no consent banner needed): beacon script in `layouts/_partials/head.html`, wrapped in `{{ if hugo.IsProduction }}` so local `hugo server` visits are not counted. Token `818e9fdc2bf240848fdcf1fb518b6b35`; dashboard under Cloudflare → Analytics & Logs → Web Analytics. Since the site is DNS-only (not proxied), the snippet must stay in the page — Cloudflare cannot inject it. Referrers there are the way to measure what LinkedIn / HN / FDB Forum actually send; LinkedIn's own analytics do not count clicks on links in comments or in the carousel PDF.
+- Cloudflare Web Analytics samples: with this traffic every figure is a multiple of 10. GoatCounter (`insidedbs.goatcounter.com`, cookie-less, counts every visit) runs alongside it, same block in `head.html`; use it for per-post numbers and referrers, keep Cloudflare for Core Web Vitals.
+
 ## IndexNow
 - Key file `static/090439f987cf705792d4250c535738ae.txt` (content = the key) is served at the site root. `scripts/indexnow.sh` reads the live sitemap and POSTs every URL to api.indexnow.org; the deploy workflow runs it after each successful deploy (step "Notify IndexNow", with the key in `INDEXNOW_KEY`). The key is public by design; rotating it means a new file + updating the workflow.
 - Manual run: `INDEXNOW_KEY=090439f987cf705792d4250c535738ae bash scripts/indexnow.sh`.
