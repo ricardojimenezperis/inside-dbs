@@ -23,4 +23,4 @@ Next: grouped read checks with selective prefetch in the resolver; then version 
 
 ## Where things live
 
-The [design and milestone snapshots](https://github.com/ricardojimenezperis/fdb-beyond-5s) are in one repository: `design/` holds the current design of each component, and each milestone is an immutable snapshot under its component. The code is published in a FoundationDB fork, tagged per milestone and linked from each snapshot's evidence register. Articles on this site are the readable account of each milestone and cite the snapshot they describe.
+The [design and milestone snapshots](https://github.com/ricardojimenezperis/fdb-beyond-5s) are in one repository: `design/` holds the current design of each component, and each milestone is an immutable snapshot under its component. The code is published in a [FoundationDB fork](https://github.com/ricardojimenezperis/foundationdb), tagged per milestone (`resolver-v1` for the first) and linked from each snapshot's evidence register. Articles on this site are the readable account of each milestone and cite the snapshot they describe.
