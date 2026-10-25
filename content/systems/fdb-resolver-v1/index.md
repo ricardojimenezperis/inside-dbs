@@ -10,6 +10,12 @@ series = ["FoundationDB", "Beyond 5s"]
 channels = ["linkedin", "fdb-forum", "medium", "dev"]
 snapshot = "resolver/v1"
 ShowToc = true
+[cover]
+  image = "cover.jpg"
+  alt = "A tree shaped like a B+ tree: a short trunk, a few thick branches and a flat, dense canopy; the leaves grow green on one side, turn amber toward the other and fall into identical crates beside a sundial"
+  relative = true
+  hidden = false
+  hiddenInList = false
 +++
 
 FoundationDB rejects any transaction that tries to commit more than five seconds after it started. The previous post followed a transaction through the system; this one starts a series about removing that limit, called Beyond 5s, and reports its first milestone: the resolver's conflict history rebuilt as a temporal B+ tree under a memory budget.
