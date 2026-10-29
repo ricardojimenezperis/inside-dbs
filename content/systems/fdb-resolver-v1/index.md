@@ -18,7 +18,7 @@ ShowToc = true
   hiddenInList = false
 +++
 
-FoundationDB rejects any transaction that tries to commit more than five seconds after it started. The previous post followed a transaction through the system; this one starts a series about removing that limit, called Beyond 5s, and reports its first milestone: the resolver's conflict history rebuilt as a temporal B+ tree under a memory budget.
+By default, FoundationDB rejects a transaction when its read version has become more than five seconds old. The previous post followed a transaction through the system; this one starts a series about removing that limit, called Beyond 5s, and reports its first milestone: the resolver's conflict history rebuilt as a temporal B+ tree under a memory budget.
 
 The five seconds are a budget in disguise. Resolvers keep a history of recently written key ranges, each with the version that wrote it, so that a committing transaction can be checked against writes that landed after its read version. FoundationDB keeps that history in a skip list and discards it by age: anything older than the window goes. The window is fixed; the memory it consumes depends on the workload. Resolver v1 turns this around. It keeps history under a fixed memory budget and discards the oldest entries only when space is needed, so the retained window is whatever the budget affords.
 
