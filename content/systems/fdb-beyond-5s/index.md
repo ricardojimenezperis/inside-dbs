@@ -19,8 +19,10 @@ Beyond 5s replaces the window with a budget. Each component retains history unde
 
 **Resolver v1: a temporal B+ tree for conflict history** (October 2026). The resolver's history rebuilt as a B+ tree of disjoint intervals under a memory budget, with nodes and key bytes sharing one block pool, proactive splits and generation-checked reclamation. Under 6 GiB it retains 2.2× the history of the original skip list, at 2.7× the resolution time of the sequential first version. [Read the article](/systems/fdb-resolver-v1/).
 
-Next: grouped read checks with selective prefetch in the resolver; then version retention in the storage server; then the protocol that coordinates both with the transaction's read version.
+**Resolver v2: grouped read checks with shared navigation and prefetch** (in progress). Sorted read begins are partitioned recursively among a node's children, so nearby reads share the descent, and resumable tasks interleave on one thread so that a memory access hinted in one visit is consumed in a later one. The [design as implemented](https://github.com/ricardojimenezperis/fdb-beyond-5s/blob/main/resolver/v2/03-resolver-v2-design.md) is published; the decision record, evaluation and article follow.
+
+Next: version retention in the storage server; then the protocol that coordinates both with the transaction's read version.
 
 ## Where things live
 
-The [design and milestone snapshots](https://github.com/ricardojimenezperis/fdb-beyond-5s) are in one repository: `design/` holds the current design of each component, and each milestone is an immutable snapshot under its component. The code is published in a [FoundationDB fork](https://github.com/ricardojimenezperis/foundationdb), tagged per milestone (`resolver-v1` for the first) and linked from each snapshot's evidence register. Articles on this site are the readable account of each milestone and cite the snapshot they describe.
+The [design and milestone snapshots](https://github.com/ricardojimenezperis/fdb-beyond-5s) are in one repository: `design/` holds the current design of each component, and each milestone is an immutable snapshot under its component (`resolver/v1/`, `resolver/v2/`). The code is published in a [FoundationDB fork](https://github.com/ricardojimenezperis/foundationdb), tagged per milestone (`resolver-v1` for the first) and linked from each snapshot's evidence register. Articles on this site are the readable account of each milestone and cite the snapshot they describe.
