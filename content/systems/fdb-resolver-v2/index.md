@@ -12,7 +12,7 @@ snapshot = "resolver/v2"
 ShowToc = true
 [cover]
   image = "cover.jpg"
-  alt = "The series' tree, green and flowering on one side and amber on the other, with a sundial and crates of fallen leaves at its foot; four squirrels run through it at once along glowing routes that part at each fork, two on the green side and two heading toward the amber leaves"
+  alt = "The series' tree inside a hall of gilded mirrors: green and flowering on one side, amber on the other, a sundial and crates of fallen leaves at its foot, four squirrels running along glowing routes that part at each fork, and the whole scene repeated smaller and smaller in the mirrors on every side"
   relative = true
 +++
 
