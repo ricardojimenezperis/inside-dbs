@@ -1,3 +1,4 @@
+.pillar { color: #E8731A; font-variant: small-caps; font-weight: 600; letter-spacing: 0.03em; }
 .figure-caption { text-align: center; margin: -0.5rem 0 1.5rem; font-size: 0.9em; color: var(--secondary); }
 .post-content figure { margin: 1.5rem 0 0; }
 .post-content figure img { width: 100%; }

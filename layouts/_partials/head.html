@@ -194,6 +194,12 @@
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "818e9fdc2bf240848fdcf1fb518b6b35"}'></script>
 <script data-goatcounter="https://insidedbs.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 {{- end }}
+{{- /* inside-dbs: KaTeX for pages with math = true in front matter (passthrough keeps $...$ and $$...$$ verbatim) */ -}}
+{{- if .Params.math }}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" crossorigin="anonymous" onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false});"></script>
+{{- end }}
 {{- partial "templates/opengraph.html" . }}
 {{- partial "templates/twitter_cards.html" . }}
 {{- partial "templates/schema_json.html" . }}
