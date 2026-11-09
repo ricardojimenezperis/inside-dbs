@@ -2,11 +2,12 @@
 title = "Resolver v3: a temporal B+ tree for FoundationDB's conflict history, from routing to reclamation"
 seoTitle = "FoundationDB Resolver v3: Budgeted Conflict History"
 date = "2026-11-06"
+lastmod = "2026-11-09"
 draft = false
-description = "Resolver v3 retains 2.20× more FoundationDB conflict history in the same 6 GiB, using recursive partitioning, cooperative prefetching and budgeted reclamation."
+description = "Final Resolver v3 retains 2.20× more FoundationDB conflict history in the same 6 GiB, with the stale-rank fix, 232 tests and final Intel and AMD evaluation."
 summary = """FoundationDB rejects a transaction once its read version is more than five seconds old because the resolver keeps only that much write history. Resolver v3 replaces that history with a temporal B+ tree under a memory budget and processes each batch in two phases: one descent routes every read and write begin together and checks the reads, then the accepted writes are applied in key order by cooperative tasks that search and prefetch ahead of a single writer.
 
-**Under the same 6 GiB budget, v3.8 retains at least 582.9 seconds of conflict history after reclamation begins—2.20× FoundationDB's calibrated 265-second window.** The 5,400-second trace replays in 0.76× FoundationDB's time on Intel and in comparable time on AMD. These timing comparisons cross sessions: v3.8 used HugeTLB pages, while the archived references used ordinary memory."""
+**Under the same 6 GiB budget, final v3 retains 582.9–584.7 seconds of conflict history in the measured tail—2.20× FoundationDB's calibrated 265-second window.** The 5,400-second trace replays in 0.77× FoundationDB's time in two Intel pairs. AMD reproduces every decision and the same retention curve; its single pair is not used to infer a performance ratio. Every published v3 performance run verifies that the complete pool is in HugeTLB pages."""
 tags = ["foundationdb", "resolver", "b+ tree", "prefetching", "transactions", "beyond-5s"]
 series = ["FoundationDB", "Beyond 5s"]
 channels = ["linkedin", "fdb-forum", "medium", "dev"]
@@ -23,7 +24,7 @@ FoundationDB decides whether a transaction commits by checking its reads against
 
 Beyond 5s replaces that history with a structure bounded by memory instead of time. This post describes the resolver that results after three milestones, as one design: first the four design pillars it rests on, then the structure that stores write-conflict intervals under a budget, the way a batch of reads is checked through it, the way the batch's accepted writes are applied, and what the measurements say. The earlier posts on [v1](https://github.com/ricardojimenezperis/fdb-beyond-5s/tree/main/resolver/v1) and [v2](https://github.com/ricardojimenezperis/fdb-beyond-5s/tree/main/resolver/v2) tell how the pieces arrived; this one tells how they fit. Every mechanism described here is present in the [v3 snapshot](https://github.com/ricardojimenezperis/fdb-beyond-5s/tree/main/resolver/v3), whose design document records the invariants and twenty-one implementation figures; this article adds seven explanatory figures carried forward from v1 and v2.
 
-> **Results at a glance.** *Retention:* under the same 6 GiB budget, v3.8 keeps at least 582.9 seconds of conflict history after reclamation begins, 2.20× FoundationDB's calibrated 265-second window. *Intel:* the 5,400-second trace replays in 0.76× FoundationDB's time, faster in `conflictset` points and `skiplisttest`, comparable in the integrated workloads. *AMD:* comparable to FoundationDB on the long trace and most paths, slower in the integrated point workload (1.30×) and `conflictset` ranges (1.28×). Every timing ratio crosses sessions: v3.8 on HugeTLB pages, the references in ordinary memory.
+> **Results at a glance.** *Retention:* under the same 6 GiB budget, final v3 retains 582.9–584.7 seconds in the measured tail, 2.20× FoundationDB's calibrated 265-second window. *Intel:* the 5,400-second trace replays in 0.77× FoundationDB's time; the paired short session gives 0.81× in `conflictset` points, 0.92× in integrated ranges and 0.74–0.91× across seven `skiplisttest` layouts, with integrated points level at 1.00× and `conflictset` ranges slower at 1.12×. *AMD:* `skiplisttest` spans 0.95–1.01× and integrated ranges is 0.99×; points, `conflictset` ranges and integrated points are slower at 1.05×, 1.29× and 1.32×. AMD's one long-trace pair validates decisions and retention but supports no timing ratio. Final v3 uses its published HugeTLB configuration; the other implementations use their native ordinary-memory configurations.
 
 *Figures can be opened at full resolution by clicking them.*
 
@@ -43,7 +44,7 @@ Resolver v3 combines four mechanisms developed across the v1, v2 and v3 mileston
 - *Avoid stranded capacity between nodes and keys → one shared pool of reusable blocks.* Pages are divided into blocks that can hold either a tree node or key records. A block freed by one can be reused by the other.
 - *Bound history memory → reclaim on allocation pressure.* Before a write mutates the tree, it reserves the blocks it may need. If the pool lacks space, reclamation advances the cutoff and releases the oldest eligible history.
 - *Reduce reclamation work → retire expired blocks and subtrees.* Key blocks are reclaimed in allocation order; fully expired subtrees can be detached and their nodes released. Mixed-age nodes remain until their live entries can be preserved or cleaned.
-- *Keep references safe as blocks are reused → version checks and generations.* The tree checks whether an entry has expired before following its key reference, while generation checks identify references to reclaimed blocks.
+- *Keep references safe as blocks are reused → version checks and generations.* The tree checks whether an entry has expired before following its key reference. Every saved write rank carries its leaf generation and mutation epoch, and node and key-block generations use disjoint spaces, so reclamation or cross-role block reuse cannot validate a stale destination.
 - *Reduce TLB misses → HugeTLB backing.* The same logical pool is mapped with 2 MiB pages, covering more blocks per TLB entry without changing the tree or its memory budget.
 
 <span class="pillar">Pillar 3</span> — **Batched traversal with recursive partitioning.** The Resolver receives many read and write ranges in one batch. Searching the tree independently for every range would repeat navigation through the same nodes and separators. Instead, it routes their sorted begin keys together, sharing work while preserving the order needed to check reads and prepare writes.
@@ -75,11 +76,11 @@ The intervals live in a B+ tree whose leaves are linked in key order. Nodes and 
 
 <p class="figure-caption"><em>Figure 2. Keeping key order without moving descriptors. A conventional sorted array moves full records on insertion and deletion. Resolver v3 keeps descriptors in fixed physical slots, represents sorted order with one-byte indices and returns deleted slots to a free bitmap. Updates therefore move small indices rather than keys, versions and references.</em></p>
 
-Three facts about an entry are kept apart because they change at different times. An entry expires logically when its CV falls below the reclamation cutoff. Its key bytes are reclaimed physically when the block that holds them is released, in allocation order, and a generation number on each range reference tells whether the block it names has been reclaimed since, without reading it. And the node that held the entry is released on its own schedule, with its own generation that guards the deferred cleanup records. Every algorithm below checks the version before it touches the bytes.
+Three facts about an entry are kept apart because they change at different times. An entry expires logically when its CV falls below the reclamation cutoff. Its key bytes are reclaimed physically when the block that holds them is released, in allocation order, and a generation number on each range reference tells whether the block it names has been reclaimed since, without reading it. And the node that held the entry is released on its own schedule, with its own generation that guards the deferred cleanup records. Node allocations use odd generation values and key-block allocations use even values. The address can therefore cross roles after reuse, but its generation cannot be mistaken for the former role. Every algorithm below checks the version before it touches the bytes.
 
-{{< figure src="fig-v3-generation.png" alt="A range reference is validated by comparing its first-block generation with the last reclaimed key-block generation, without dereferencing the block; node generations separately guard deferred cleanup records" link="fig-v3-generation.png" >}}
+{{< figure src="fig-v3-generation.png" alt="Node blocks use odd generations and key blocks use even generations, so an address reused across roles cannot satisfy an old generation check" link="fig-v3-generation.png" >}}
 
-<p class="figure-caption"><em>Figure 3. Logical expiry and physical reference validity are separate checks. The commit version determines whether an entry still belongs to readable history. The generation stored in a `RangeRef` determines whether the referenced key block has since been released and reused. Node generations provide the corresponding protection for deferred leaf-cleanup records. A generation mismatch rejects the reference without dereferencing reclaimed memory.</em></p>
+<p class="figure-caption"><em>Figure 3. Logical expiry and physical reference validity are separate checks. The commit version determines whether an entry still belongs to readable history. The generation stored in a `RangeRef` determines whether the referenced key block has since been released and reused. Node generations provide the corresponding protection for deferred leaf-cleanup records. Final v3 assigns odd generations to nodes and even generations to key blocks, so cross-role reuse cannot produce a false match. A mismatch rejects the reference without dereferencing reclaimed memory.</em></p>
 
 ## One batch, two phases
 
@@ -153,7 +154,7 @@ first task is visited again.
 Each traversal task carries a tree node, a contiguous slice of the batch's
 begin-sorted operations, and the bounds and cursors needed to continue its
 work. The whole sequence starts as one task at the root. As partitioning
-creates sibling tasks, up to `G` tasks—sixteen in v3.8—are resident at once
+creates sibling tasks, up to `G` tasks—sixteen in final v3—are resident at once
 and visited in rounds on one non-preemptive thread; further tasks wait until a
 resident slot becomes available.
 
@@ -395,7 +396,7 @@ which to reach the cache before its write turn.
 >}}
 
 <p class="figure-caption"><em>Figure 16. Two groups of write tasks on one
-cooperative thread, drawn with four tasks per group for legibility; v3.8 uses
+cooperative thread, drawn with four tasks per group for legibility; final v3 uses
 eight. Only the oldest task writes. Younger tasks search, prefetch and park,
 and the successor group starts after the oldest group reaches its halfway
 point.</em></p>
@@ -430,8 +431,8 @@ changes. Its state machine has five stages.
 
 3. **Acquire the write turn, reserve and prepare the split —
    `PrepareInput`.**
-   On wake-up, the task validates its speculative destination again before
-   consuming any saved pointer. `PrepareInput` rejects an empty interval and
+   On wake-up, the task validates the leaf generation and mutation epoch saved
+   with its speculative rank before consuming it. `PrepareInput` rejects an empty interval and
    reserves the key blocks, up to two leaf slots and any structural work the
    write may require. Reservation may reclaim the oldest history. If that
    changes the destination leaf or advances `reclaimCV`, the task returns to
@@ -487,8 +488,8 @@ after issuing a prefetch hint. A younger task searches speculatively when it
 can do so without modifying the tree and normally parks at `SearchReady`; if
 inspection or right routing would require mutation, it parks at `Inspect`
 instead. When the task becomes the writer, the entry guard validates its
-representative, anchor, mutation counter and reclamation cutoff before any
-saved pointer is consumed, and `PrepareInput` validates the accepted interval
+representative, anchor, saved leaf generation, mutation epoch and reclamation cutoff before any
+saved rank or pointer is consumed, and `PrepareInput` validates the accepted interval
 and reserves all space required by the mutation. If reservation changes the
 destination or cutoff, the task returns to `Inspect` with the reservation
 already holding. `KeyMore` prefetches the required stored-key bytes across
@@ -512,13 +513,13 @@ The second is the reservation. Before the oldest task mutates, `reserveWrite` ch
 
 {{< figure src="fig-v3-reserve-before-mutate.png" alt="The oldest write task reserves pool space before mutation and restarts destination inspection if reservation reclaims history" link="fig-v3-reserve-before-mutate.png" >}}
 
-<p class="figure-caption"><em>Figure 20. Reserve before mutate. With room in the pool the validated position is used; when reclaiming was needed, the destination or the cutoff may have changed and the task inspects again. Split state is prepared only after the reservation holds.</em></p>
+<p class="figure-caption"><em>Figure 20. Reserve before mutate. With room in the pool the validated position is used; when reclaiming was needed, the destination, its generation or the cutoff may have changed and the task inspects again. Split state is prepared only after the reservation holds.</em></p>
 
-Destinations are validated because the writes before a given one can change its leaf: a split can leave the write's begin in the left leaf while invalidating its rank, or move the insertion point beyond the leaf's new upper boundary, in which case a right-neighbour check moves the search to the new right leaf. Figure 21 walks the three cases.
+Destinations are validated because the writes before a given one can change its leaf, and reservation can reclaim it. Final v3 saves the destination leaf generation and mutation epoch with every rank. A rank is reusable only if the same leaf generation still occupies the block and that leaf has not mutated; otherwise the task searches again. Node and key-block generation values are disjoint, so a block reclaimed as a node and reused for keys cannot accidentally satisfy the leaf check. A split can also move the insertion point beyond the leaf's new upper boundary, in which case a right-neighbour check moves the search to the new right leaf. Figure 21 shows these cases.
 
 {{< figure src="fig-v3-destination-validation.png" alt="A write task validates its speculative destination before reusing a saved search position or following a changed leaf boundary" link="fig-v3-destination-validation.png" >}}
 
-<p class="figure-caption"><em>Figure 21. Validating a destination. A still-valid position is reused; one invalidated while the task was parked is searched again in the same leaf; a split that moved the insertion point past the leaf's new boundary sends the write to the right neighbour.</em></p>
+<p class="figure-caption"><em>Figure 21. Validating a destination. A still-valid generation and mutation epoch allow the saved rank to be reused. A mutation, reclamation or cross-role block reuse forces a new search; a split that moved the insertion point past the leaf's new boundary sends the write to the right neighbour.</em></p>
 
 ## Reclaiming history within a fixed budget
 
@@ -600,7 +601,7 @@ The ordering reverses for larger working sets. At 16 MiB, with a working set tha
 
 This difference is consistent with the Resolver's cross-machine behaviour. Cooperative scheduling has a fixed cost in task state, dispatch, branches and instructions, and it increases the set of leaves, keys and task records that are live between a prefetch and its use. Intel's larger private caches provide more room for that active set, while its much higher large-working-set latency leaves more time and more cost for recursive partitioning and cooperative prefetching to remove or hide. On AMD, the smaller private caches leave less capacity in which prefetched data can survive the intervening visits, while a miss that reaches the shared cache or DRAM is cheaper. This combination would give the scheduler both less far-memory latency to hide and less private-cache headroom with which to hide it. The pointer-chase measurements are consistent with that interpretation, although they do not measure prefetch survival directly.
 
-That combination provides a plausible explanation for the observed pattern: v3.8 obtains its clearest gains on Intel, while on AMD it is comparable on the long trace and most range and key-layout workloads but slower in the integrated point workload. It does not, by itself, explain the `conflictset` range result. That workload commits only 16.5% of its transactions, so FoundationDB's ability to terminate after an early conflict remains an independent algorithmic advantage. Nor does the pointer chase prove causality: it permits only one outstanding dependent access and uses ordinary 4 KiB pages, whereas v3.8 interleaves several tasks and maps its pool with HugeTLB. Establishing the complete attribution would require paired Resolver and FoundationDB measurements of cache residency, load waits, prefetch timeliness, branch behaviour and CPU-frontend starvation in the same sessions.
+That combination provides a plausible explanation for the observed pattern: final v3 obtains its clearest gains on Intel, while AMD's short workloads cluster closer to FoundationDB except for the integrated point and `conflictset` range regressions. The final AMD long trace is a correctness and retention replica, not a timing conclusion. The pointer chase does not, by itself, explain the `conflictset` range result. That workload commits only 16.5% of its transactions, so FoundationDB's ability to terminate after an early conflict remains an independent algorithmic advantage. Nor does the pointer chase prove causality: it permits only one outstanding dependent access and uses ordinary 4 KiB pages, whereas final v3 interleaves several tasks and maps its pool with HugeTLB. Establishing the complete attribution would require paired measurements of cache residency, load waits, prefetch timeliness, branch behaviour and CPU-frontend starvation.
 
 The AMD 1 MiB point is less stable across process launches than the other selected sizes. The preselected primary process measured 6.28 ns, while the medians of five complete processes ranged from 5.49 to 6.42 ns. The cause was not established; physical-page placement is consistent with the observation but was not controlled or recorded. The figure reports the primary process and exposes the cross-process range.
 
@@ -610,7 +611,7 @@ The contrast is structural rather than merely a difference in cache capacity. Th
 
 <p class="figure-caption"><em>Figure 25. Where the Resolver's bytes can reside on the two testbeds. A cache drawn inside a core is private to it; an enclosing cache is shared by the cores it contains, and × n denotes replicated units. Only the highlighted core executes the timed Resolver. Campaign-recorded properties are distinguished from cache and package structure taken from the vendors' published microarchitectures. Intel's 48 KiB DL0, 192 KiB DL1 and private 3 MiB L2 lead to a 36 MiB L3 shared across the compute tile; AMD's private 32 KiB L1 data cache and 1 MiB L2 lead to a 32 MiB L3 shared by the eight-core CCD. Both processors place the memory controller outside the die containing the timed core.</em></p>
 
-The dependent-pointer experiment isolates serial data-access latency; it is not a measurement of the HugeTLB-backed v3.8 pool or of the Resolver's ability to overlap several accesses. The byte-identical binary runs with ordinary 4 KiB pages, one dependent pointer per 64-byte line and no software prefetch. Recursive partitioning removes some such dependencies, while cooperative scheduling attempts to overlap the remaining ones. The measured curves make the cross-machine performance pattern intelligible, but the workload profiles—not this diagnostic alone—determine how much of each cache and memory regime the Resolver actually experiences.
+The dependent-pointer experiment isolates serial data-access latency; it is not a measurement of final v3's HugeTLB-backed pool or of the Resolver's ability to overlap several accesses. The byte-identical binary runs with ordinary 4 KiB pages, one dependent pointer per 64-byte line and no software prefetch. Recursive partitioning removes some such dependencies, while cooperative scheduling attempts to overlap the remaining ones. The measured curves make the cross-machine performance pattern intelligible, but the workload profiles—not this diagnostic alone—determine how much of each cache and memory regime the Resolver actually experiences.
 
 Scheduling and write-group alternatives were swept independently on both systems. Both campaigns retained the same 2 × 8 configuration because no alternative delivered a repeatable improvement in the complete point and range workloads. Results are therefore reported separately: an effect that appears on only one processor is preserved rather than averaged into a synthetic machine.
 
@@ -624,9 +625,9 @@ A later padding control isolated the effect more directly. V3.17 enlarged `addWr
 
 The counters showed that these layout effects changed observed load-wait cycles even when instruction counts and decisions were unchanged. They did not identify one universal microarchitectural cause, and function-entry alignment does not make internal branch targets or loop placement identical. The lesson is methodological: without controlling layout, a source edit can move unrelated hot code and be credited for a speedup or regression that it did not cause.
 
-From that point onward, every new custom production or comparison binary is built with `-falign-functions=64`. Text hashes and function layouts are recorded, and a padding-only address-matching control is used when a change inside a large function can still move the code that follows. The rule does not claim that 64-byte alignment is always the fastest possible layout; it prevents incidental shifts of later function entries from contaminating comparisons. The published v3.8 binaries follow this rule. FoundationDB and the archived v1 and v2 references retain their original build flags, so the headline ratios compare the delivered configurations rather than isolating the effect of alignment.
+From that point onward, custom production comparisons record text hashes and function layouts, use `-falign-functions=64` where the experimental protocol requires it, and employ a padding-only address-matching control when a change inside a large function can still move the code that follows. The rule does not claim that 64-byte alignment is always fastest; it prevents incidental shifts of later function entries from being credited to a source change. The final fix A/B additionally uses alternating AB/BA pairs and a byte-identical A/A control. The final headline evaluation uses its own common build and pairing protocol, specified in the consolidated report.
 
-Dedicated CPU-frontend recordings measured instruction-cache and decoded-op-cache misses, decoder use, and cycles or slots in which the frontend delivered no operations on both processors. Later experimental versions with substantially larger write-path code did incur more instruction-cache and op-cache misses, but frontend starvation remained a small fraction of the write phase and did not track the observed timing differences. The varying component was instead the time spent waiting for data. Instruction-side layout therefore remained an important experimental control, but it was not identified as the limiting resource of v3.8.
+Dedicated CPU-frontend recordings measured instruction-cache and decoded-op-cache misses, decoder use, and cycles or slots in which the frontend delivered no operations on both processors. Later experimental versions with substantially larger write-path code did incur more instruction-cache and op-cache misses, but frontend starvation remained a small fraction of the write phase and did not track the observed timing differences. The varying component was instead the time spent waiting for data. Instruction-side layout therefore remained an important experimental control, but it was not identified as the limiting resource of the selected scheduling design.
 
 ### What the benchmarks exercise
 
@@ -642,47 +643,47 @@ Every run verifies the resulting transaction decisions, conflicts and replay has
 
 ### Retaining 2.2× more history in the same memory
 
-Retention is the primary result. Under the same 6 GiB budget, FoundationDB's calibrated window retains 265 seconds of the long trace. V3.8 first discards history after 703 seconds and thereafter never retains less than 582.9 seconds.
+Retention is the primary result. Under the same 6 GiB budget, FoundationDB's calibrated window retains 265 seconds of the long trace. Final v3 first discards history at batch 22,492, about 703 seconds into the trace, and retains 582.9–584.7 seconds in the measured tail.
 
-The resulting minimum retained window is **2.20× FoundationDB's for the same memory budget**. This capacity gain comes from the temporal representation and budgeted reclamation introduced in v1. V2 and v3.8 preserve the same retention behaviour while reducing the CPU cost of maintaining it.
+The resulting retained window is **2.20× FoundationDB's for the same memory budget**. This capacity gain comes from the temporal representation and budgeted reclamation introduced in v1. V2 and final v3 preserve the same retention behaviour while reducing the CPU cost of maintaining it.
 
-{{< figure src="fig-v3-retention.png" alt="Minimum retained history under a 6 GiB budget: FoundationDB 265 seconds, v3.8 582.9 seconds" link="fig-v3-retention.png" >}}
+{{< figure src="fig-v3-retention.png" alt="Retained history under a 6 GiB budget: FoundationDB 265 seconds, final v3 at least 582.9 seconds in the measured tail" link="fig-v3-retention.png" >}}
 
-<p class="figure-caption"><em>Figure 26. Minimum history retained under the same 6 GiB budget. FoundationDB's window is calibrated to 265 seconds; after reclamation begins, v3.8 never retains less than 582.9 seconds, or 2.20× FoundationDB's window. V3.8 first discards history after 703 seconds. V1 and v2 follow the same retention curve and are omitted because their identical bars add no information; their contribution is the progressive reduction in processing cost shown next.</em></p>
+<p class="figure-caption"><em>Figure 26. History retained under the same 6 GiB budget. FoundationDB's window is calibrated to 265 seconds; final v3 retains 582.9–584.7 seconds in the measured tail, or 2.20× FoundationDB's window. Its boundary first advances at batch 22,492, about 703 seconds. V1 and v2 follow the same retention curve and are omitted because their identical bars add no information.</em></p>
 
-### From v1 to v2 to v3.8
+### From v1 to v2 to final v3
 
 Each milestone attacks a different part of the cost.
 
 **V1 made long retention possible.** The temporal B+ tree, shared node-and-key pool, version-ordered reclamation and proactive splits replaced per-entry skip-list history with compact paged storage. It reached the 582.9-second retained window, but independent traversals and exposed memory latency made it expensive.
 
-**V2 reduced the read-side cost.** Recursive partitioning routes a sorted batch through the tree without repeating the same upper-level separator comparisons, while cooperative read tasks prefetch nodes and keys and overlap their memory waits. On Intel, relative to v1, v2 reduced time to 0.55× in the integrated point workload, 0.73× in integrated ranges, 0.61–0.63× in `skiplisttest`, and 0.68× on the long trace.
+**V2 reduced the read-side cost.** Recursive partitioning routes a sorted batch through the tree without repeating the same upper-level separator comparisons, while cooperative read tasks prefetch nodes and keys and overlap their memory waits. In the final paired Intel short session, relative to v1, v2 takes 0.51× in integrated points, 0.68× in integrated ranges and 0.61–0.63× in the two illustrated `skiplisttest` layouts.
 
-**V3 reduced the write-side cost.** The mixed descent locates write destinations while checking reads, the write frontier restores begin order, and two groups of cooperative write tasks prefetch destinations and stored keys while preserving serial mutation. Relative to v2, v3.8 reduced time to 0.78× in integrated points, 0.90× in integrated ranges, 0.70× in `skiplisttest`, and 0.41× on the long trace. The long trace is where the write path dominated, and therefore where v3 produces its largest gain.
+**V3 reduced the write-side cost.** The mixed descent locates write destinations while checking reads, the write frontier restores begin order, and two groups of cooperative write tasks prefetch destinations and stored keys while preserving serial mutation. Relative to v2 in that same session, final v3 takes 0.74× in integrated points, 0.88× in integrated ranges and 0.68–0.69× in the two illustrated `skiplisttest` layouts.
 
-From v1 to v3.8, the complete long-trace cost fell to **0.28×** while the retained-history curve remained unchanged.
+The final long-trace campaign compares FDB and v3 directly; it does not contain new v1 or v2 arms, so the evolution figure does not carry the older cross-session long-trace ratios forward.
 
-{{< figure src="fig-v3-evolution.png" alt="Time of v1, v2 and v3.8 on Intel across seven workloads, normalized to v1" link="fig-v3-evolution.png" >}}
+{{< figure src="fig-v3-evolution.png" alt="Final-session time of v1, v2 and final v3 on Intel across six short workloads, normalized to v1" link="fig-v3-evolution.png" >}}
 
-<p class="figure-caption"><em>Figure 27. Evolution from v1 to v3.8 on Intel, normalized to v1. V2 primarily removes repeated read-side traversal work; v3 additionally removes the second write descent and overlaps write-path memory latency. `conflictset` ranges is the exception: its unusually high abort rate rewards FoundationDB's early termination path.</em></p>
+<p class="figure-caption"><em>Figure 27. Evolution from v1 to final v3 in the paired Intel short-benchmark session, normalized to v1. V2 primarily removes repeated read-side traversal work; v3 additionally removes the second write descent and overlaps write-path memory latency. The long trace is omitted because its final campaign contains only FDB and v3.</em></p>
 
-### V3.8 against FoundationDB
+### Final v3 against FoundationDB
 
 The final design obtains the additional history at a similar or lower processing cost, depending on the processor and workload.
 
-On Intel, v3.8 takes 0.80× FoundationDB's time for `conflictset` points, 0.76–0.84× in `skiplisttest`, and 0.76× on the long trace. The integrated point and range workloads are comparable to FoundationDB at 1.00× and 0.94×. `conflictset` ranges is slower at 1.10×.
+On Intel, final v3 takes 0.81× FoundationDB's time for `conflictset` points, 0.74–0.91× across seven `skiplisttest` layouts and 0.77× on the long trace. Integrated points is level at 1.00×, integrated ranges takes 0.92× and `conflictset` ranges is slower at 1.12×.
 
-On AMD, v3.8 is comparable to FoundationDB in `conflictset` points, integrated ranges, `skiplisttest` and the long trace, at 0.94–1.04×. It is slower in integrated points at 1.30× and in `conflictset` ranges at 1.28×.
+On AMD, final v3 takes 0.95–1.01× FoundationDB across seven `skiplisttest` layouts and 0.99× in integrated ranges. It is slower in `conflictset` points at 1.05×, integrated points at 1.32× and `conflictset` ranges at 1.29×. The AMD long trace has one measured pair: its times are published, but no performance ratio is inferred from a single pair.
 
-The result is therefore not a universal speedup claim. It is that the Resolver can retain **2.20× more history without imposing a general throughput penalty**: it is faster on most Intel paths, comparable on most AMD paths, and has two clearly identified AMD regressions, in `conflictset` ranges and the integrated point workload.
+The result is therefore not a universal speedup claim. It is that the Resolver retains **2.20× more history** while taking less time on most Intel paths; on AMD the result depends on workload, with `skiplisttest` and integrated ranges near FoundationDB and three slower workloads identified explicitly.
 
-{{< figure src="fig-v3-vs-fdb.png" alt="V3.8 time relative to FoundationDB on Intel and AMD across six workloads, with equal cost marked at 1.0" link="fig-v3-vs-fdb.png" >}}
+{{< figure src="fig-v3-vs-fdb.png" alt="Final v3 time relative to FoundationDB on Intel and AMD across six workloads, with equal cost marked at 1.0 and no AMD long-trace ratio inferred" link="fig-v3-vs-fdb.png" >}}
 
-<p class="figure-caption"><em>Figure 28. V3.8 time relative to FoundationDB on two memory architectures; lower is better. The vertical line marks equal cost. `skiplisttest` shows the range across the measured key layouts. The Intel and AMD results are kept separate because the design deliberately targets different memory systems rather than an averaged machine.</em></p>
+<p class="figure-caption"><em>Figure 28. Final v3 time relative to FoundationDB in the paired Intel and AMD sessions; lower is better. The vertical line marks equal cost and `skiplisttest` shows the range across all seven key layouts. AMD's long trace is marked N/A because its single pair supports correctness and retention replication, not a timing inference.</em></p>
 
 ### How to read the ratios
 
-V3.8 and the archived references were measured on the same two machines and performed the same work with the same decisions, but not in the same sessions. V3.8 used HugeTLB and 64-byte function alignment; the archived FoundationDB, v1 and v2 runs used ordinary memory. The ratios therefore compare the delivered configurations rather than isolating one mechanism. Differences within ±10% on Intel and ±7% on AMD are not treated as established; the evolution figures identify where the complete implementations improved, while the design and phase measurements explain which work each milestone removed.
+The final short benchmarks measure FDB, v1, v2 and v3 in one rotated session per machine. The Intel long trace uses two FDB/v3 pairs; the AMD replica has one. Final v3 uses its published HugeTLB-backed pool, while FDB, v1 and v2 use their native ordinary-memory implementations. The ratios therefore compare deployed configurations rather than isolating page mode. The short tables report the minimum and maximum of five paired ratios, not confidence intervals; no sub-1% difference is attributed to code.
 
 ## What was tried and set aside
 
@@ -713,12 +714,15 @@ them. V3.16 and v3.17 therefore did not consistently improve on v3.8 in either
 the point or range workloads on Intel or AMD. Retiring a fully covered leaf was
 also rarely exercised by the measured workloads. Because the later designs
 added states, metadata and invariants without producing a repeatable end-to-end
-gain, v3.8 was retained as the published design.
+gain, the v3.8 scheduling design was retained. The later correctness fix
+`f866c98d` then added leaf-generation and mutation-epoch validation without
+changing that design; its paired A/B medians lie between −0.49% and +0.60%,
+with an A/A control of the same size.
 
 The experimental branches remain part of the snapshot because they record both
 the attempted optimizations and the conditions under which they failed to pay
-for themselves. The design document distinguishes the mechanisms selected for
-v3.8 from those that belong only to the experimental series.
+for themselves. The design document distinguishes final v3 from mechanisms
+that belong only to the experimental series.
 
 ## What comes next
 
@@ -728,4 +732,4 @@ Configured memory and disk budgets remain hard limits. If capacity runs out whil
 
 ## Milestone record
 
-The [v3 snapshot](https://github.com/ricardojimenezperis/fdb-beyond-5s/tree/main/resolver/v3) holds the [design as implemented](https://github.com/ricardojimenezperis/fdb-beyond-5s/blob/main/resolver/v3/03-resolver-v3-design.md), with its invariants and twenty-one implementation figures, seven more being carried forward here from v1 and v2; the [decision record](https://github.com/ricardojimenezperis/fdb-beyond-5s/blob/main/resolver/v3/04-decisions-and-evolution.md), from v3.0 to v3.8 and the experimental branches; the [validation and evidence](https://github.com/ricardojimenezperis/fdb-beyond-5s/blob/main/resolver/v3/05-validation-and-evidence.md) register, with the source identities and the tests and replays; the [evaluation](https://github.com/ricardojimenezperis/fdb-beyond-5s/blob/main/resolver/v3/06-evaluation.md), with every run and the bracket of every ratio in its [Intel](https://github.com/ricardojimenezperis/fdb-beyond-5s/blob/main/resolver/v3/evaluation/intel/tables.md) and [AMD](https://github.com/ricardojimenezperis/fdb-beyond-5s/blob/main/resolver/v3/evaluation/amd/tables.md) tables; the [engineering overview](https://github.com/ricardojimenezperis/fdb-beyond-5s/blob/main/resolver/v3/01-engineering-overview.md) and the [project architecture](https://github.com/ricardojimenezperis/fdb-beyond-5s/blob/main/resolver/v3/02-project-architecture.md). The code, tests and benchmarks are on the [`resolver-v3`](https://github.com/ricardojimenezperis/foundationdb/tree/resolver-v3) branch of the FoundationDB fork, tagged `resolver-v3` at v3.8; the [mapping](https://github.com/ricardojimenezperis/fdb-beyond-5s/blob/main/resolver/v3/mapping.tsv) relates every published commit to the tree that was measured. The [current Resolver design](https://github.com/ricardojimenezperis/fdb-beyond-5s/blob/main/design/02-resolver.md) describes this version; the [v1](https://github.com/ricardojimenezperis/fdb-beyond-5s/tree/main/resolver/v1) and [v2](https://github.com/ricardojimenezperis/fdb-beyond-5s/tree/main/resolver/v2) snapshots remain as published.
+The [v3 snapshot](https://github.com/ricardojimenezperis/fdb-beyond-5s/tree/main/resolver/v3) holds the [final design](https://github.com/ricardojimenezperis/fdb-beyond-5s/blob/main/resolver/v3/03-resolver-v3-design.md), [decision record](https://github.com/ricardojimenezperis/fdb-beyond-5s/blob/main/resolver/v3/04-decisions-and-evolution.md), [validation register](https://github.com/ricardojimenezperis/fdb-beyond-5s/blob/main/resolver/v3/05-validation-and-evidence.md) and [final evaluation](https://github.com/ricardojimenezperis/fdb-beyond-5s/blob/main/resolver/v3/06-evaluation.md). The production code is `f866c98d8585a77280adbf44c72650f16e975f86`; regression and mixed-batch tests are `18260afe5f80e00ae2b5cd4952f49522c07cbd0e` and `2a68fc9b90670bea84c7a458e85d582c7f4eb816`. They are published on the [`resolver-v3`](https://github.com/ricardojimenezperis/foundationdb/tree/resolver-v3) branch and in the [`resolver-v3-final`](https://github.com/ricardojimenezperis/foundationdb/releases/tag/resolver-v3-final) release, whose seven assets contain the consolidated evidence. The older tag `resolver-v3` remains the historical v3.8 milestone; the [mapping](https://github.com/ricardojimenezperis/fdb-beyond-5s/blob/main/resolver/v3/mapping.tsv) records it and the final fix. The [v1](https://github.com/ricardojimenezperis/fdb-beyond-5s/tree/main/resolver/v1) and [v2](https://github.com/ricardojimenezperis/fdb-beyond-5s/tree/main/resolver/v2) snapshots remain as published.
