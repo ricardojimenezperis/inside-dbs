@@ -339,14 +339,21 @@ redirection also invalidates any saved split candidate, records that a
 right-neighbour check may be required and increments the representative's
 mutation counter. The active writer's cursor is redirected immediately.
 
-A younger task never validates a saved pointer by dereferencing the leaf it
-points to. Before consuming speculative state, it compares batch-owned
-metadata: its representative, anchor address, mutation counter and saved
-`reclaimCV`. If any value changed, the task parks without touching the old
-leaf. When it becomes the writer, it resolves the current representative,
-starts again from the redirected destination and reissues the required hints.
-The destination records can therefore survive earlier splits and reclamation
-without turning a reused block into a valid-looking leaf pointer.
+A younger task validates a saved destination at two levels, in order. The
+first compares batch-owned metadata without touching the leaf: its
+representative, anchor address, prepared mutation counter and saved
+`reclaimCV`. If any value changed, the task parks, and when it becomes the
+writer it resolves the current representative, starts again from the
+redirected destination and reissues the required hints. Only if that metadata
+still holds does the second level read the block itself: first its generation,
+which must be odd and equal to the one saved with the rank, and only then the
+leaf's mutation epoch. Node generations are odd and key-block generations even,
+from disjoint sequences, so a block released from a leaf and reused for key
+bytes fails the generation check before any leaf-only field is read; a
+matching leaf whose epoch moved keeps its identity but loses its rank, and the
+task searches it again. The destination records can therefore survive earlier
+splits and reclamation without turning a reused block into a valid-looking
+leaf pointer.
 
 ### From decisions to accepted intervals
 
@@ -714,10 +721,21 @@ them. V3.16 and v3.17 therefore did not consistently improve on v3.8 in either
 the point or range workloads on Intel or AMD. Retiring a fully covered leaf was
 also rarely exercised by the measured workloads. Because the later designs
 added states, metadata and invariants without producing a repeatable end-to-end
-gain, the v3.8 scheduling design was retained. The later correctness fix
-`f866c98d` then added leaf-generation and mutation-epoch validation without
-changing that design; its paired A/B medians lie between −0.49% and +0.60%,
-with an A/A control of the same size.
+gain, the v3.8 scheduling design was retained.
+
+That design shipped with one defect, found after v3.8 was tagged. A saved
+write rank carried neither the identity nor the revision of its leaf, so a
+rank prepared during the read phase could be reused after pressure reclamation
+had freed the leaf and the pool had handed its block to another role. In a
+two-page pool the regression case loses 60 accepted writes with 2×8 write
+tasks and aborts at commit version 21 with 2×4; the block-size sweep finds 17
+bad sizes under 2×8 and all 400 configurations aborting under 2×4, with the
+same outcomes in assertion, optimized and sanitizer builds. The correctness fix
+`f866c98d` saves the leaf generation and mutation epoch with every rank and
+validates them, in that order, before the rank is consumed; a stale rank is
+discarded and the search is repeated. It changes no scheduling decision, and
+its paired A/B medians lie between −0.49% and +0.60%, with an A/A control of
+the same size.
 
 The experimental branches remain part of the snapshot because they record both
 the attempted optimizations and the conditions under which they failed to pay
