@@ -68,17 +68,17 @@ The history is a set of disjoint half-open key intervals, each carrying the comm
 
 The intervals live in a B+ tree whose leaves are linked in key order. Nodes and key bytes draw their blocks from one pool: 64 KiB pages cut into 2 KiB blocks, with one free list, so a block freed by a node can next hold keys and the budget is a single number. A leaf holds up to 59 interval descriptors in this layout, an internal node up to 40 children. Inside a node the descriptors stay where they were written and a one-byte order array gives their sorted rank, so an insertion or a deletion shifts one-byte indices and leaves the records in place. Keys are variable-length records appended to linked key blocks; a descriptor refers to its record by block, offset and lengths, and a separator in an internal node reuses the record of its child's minimum instead of owning a copy. A point write [k, k\0) stores its endpoint once and reads its begin as the prefix, so a key of L bytes costs L + 1 bytes of payload instead of 2L + 1.
 
-{{< figure src="fig-v3-storage.png" alt="Node blocks hold descriptors, versions and references; linked key blocks hold key bytes; both draw from one shared block pool" link="fig-v3-storage.png" >}}
+{{< figure src="fig-v3-storage-col.png" alt="Node blocks hold descriptors, versions and references; linked key blocks hold key bytes; both draw from one shared block pool" link="fig-v3-storage.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 1. The shared pool. Node blocks hold interval descriptors, commit versions and references; key blocks hold the bytes; a separator reuses the range record of its child's first entry. Nodes and keys compete for the same budget.</em></p>
 
-{{< figure src="fig-v3-order-bytes.png" alt="A conventional sorted descriptor array moves full records on insertion and deletion; Resolver v3 keeps descriptors in fixed physical slots and shifts one-byte order indices" link="fig-v3-order-bytes.png" >}}
+{{< figure src="fig-v3-order-bytes-col.png" alt="A conventional sorted descriptor array moves full records on insertion and deletion; Resolver v3 keeps descriptors in fixed physical slots and shifts one-byte order indices" link="fig-v3-order-bytes.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 2. Keeping key order without moving descriptors. A conventional sorted array moves full records on insertion and deletion. Resolver v3 keeps descriptors in fixed physical slots, represents sorted order with one-byte indices and returns deleted slots to a free bitmap. Updates therefore move small indices rather than keys, versions and references.</em></p>
 
 Three facts about an entry are kept apart because they change at different times. An entry expires logically when its CV falls below the reclamation cutoff. Its key bytes are reclaimed physically when the block that holds them is released, in allocation order, and a generation number on each range reference tells whether the block it names has been reclaimed since, without reading it. And the node that held the entry is released on its own schedule, with its own generation that guards the deferred cleanup records. Node allocations use odd generation values and key-block allocations use even values. The address can therefore cross roles after reuse, but its generation cannot be mistaken for the former role. Every algorithm below checks the version before it touches the bytes.
 
-{{< figure src="fig-v3-generation.png" alt="Node blocks use odd generations and key blocks use even generations, so an address reused across roles cannot satisfy an old generation check" link="fig-v3-generation.png" >}}
+{{< figure src="fig-v3-generation-col.png" alt="Node blocks use odd generations and key blocks use even generations, so an address reused across roles cannot satisfy an old generation check" link="fig-v3-generation.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 3. Logical expiry and physical reference validity are separate checks. The commit version determines whether an entry still belongs to readable history. The generation stored in a `RangeRef` determines whether the referenced key block has since been released and reused. Node generations provide the corresponding protection for deferred leaf-cleanup records. Final v3 assigns odd generations to nodes and even generations to key blocks, so cross-role reuse cannot produce a false match. A mismatch rejects the reference without dereferencing reclaimed memory.</em></p>
 
@@ -86,7 +86,7 @@ Three facts about an entry are kept apart because they change at different times
 
 A resolver batch arrives with its conflict ranges sorted by key, together with the transaction records. The tree exposes two calls. `checkReads` consumes the sorted endpoints, checks the eligible reads, and routes every read and write begin in one mixed descent. At each leaf it records one prepared destination for the first write of every write-bearing slice; it applies nothing and never moves the reclamation cutoff. Once the transactions' decisions are complete, `addWrites` drops the writes of rejected and too-old transactions, unions the accepted intervals, and applies them in key order, reserving space and reclaiming the oldest history when a write needs room.
 
-{{< figure src="fig-v3-batch-phases.png" alt="The two batch phases: checkReads checks reads and prepares write destinations; addWrites applies accepted writes after transaction decisions are complete" link="fig-v3-batch-phases.png" >}}
+{{< figure src="fig-v3-batch-phases-col.png" alt="The two batch phases: checkReads checks reads and prepares write destinations; addWrites applies accepted writes after transaction decisions are complete" link="fig-v3-batch-phases.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 4. One batch, two phases. During checkReads no key block is reclaimed and reclaimCV does not move, so every pointer a task holds stays valid; addWrites starts only when all transaction decisions are complete, and every destination saved in the first phase is validated before it is used.</em></p>
 
@@ -100,13 +100,13 @@ A task starts at the root owning the complete slice of read and write begins. At
 
 The relationship between begins and separators changes as the batch moves down the tree. Near the root, a few separators classify a large slice of begins. At intermediate levels, each node receives a smaller slice and the two ordered sequences can have similar sizes. Near the leaves, most reached nodes receive one begin, and recursive partitioning naturally becomes an ordinary binary search. Tasks preserve the slices created along the way, so the same algorithm handles all three regimes without starting an independent root-to-leaf search for every begin.
 
-{{< figure src="fig-v3-batch-descent.png" alt="A sorted batch is divided into progressively smaller task slices as it descends from the root to the leaves." link="fig-v3-batch-descent.png" >}}
+{{< figure src="fig-v3-batch-descent-col.png" alt="A sorted batch is divided into progressively smaller task slices as it descends from the root to the leaves." link="fig-v3-batch-descent.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 5. A sorted batch descending through the tree. Near the root, a few separators classify large slices; farther down, each nonempty slice becomes a task for one subtree; near the leaves, most tasks carry one begin and perform an ordinary binary search. Empty slices create no task.</em></p>
 
 Within one node, the operation is a recursive partition of two sorted sequences. After a boundary divides the begins, that boundary belongs to neither subproblem and is never compared again. The left and right subproblems repeat the rule over smaller boundary and begin slices until every nonempty group has one child destination.
 
-{{< figure src="fig-v3-recursive-partition.svg" alt="The middle child boundary divides sorted begins into two smaller subproblems, which are recursively assigned to children." link="fig-v3-recursive-partition.svg" >}}
+{{< figure src="fig-v3-recursive-partition-col.png" alt="The middle child boundary divides sorted begins into two smaller subproblems, which are recursively assigned to children." link="fig-v3-recursive-partition.svg" class="col" >}}
 
 <p class="figure-caption"><em>Figure 6. Recursive partitioning within one internal node. Boundary 40 divides the sorted begins into lower and upper slices; the smaller subproblems then resolve boundaries 20 and 60. Equal begins go right, into the child whose minimum is that boundary.</em></p>
 
@@ -122,7 +122,7 @@ This gives $O(S\log(1+K/S))$ when $K\gg S$, linear work when $K$ and $S$ are
 comparable, and $O(K\log(1+S/K))$ when $K\ll S$. For $K=1$, it is the usual
 $O(\log(S+1))$ binary search.
 
-{{< figure src="fig-v3-partition-balance.png" alt="Expected routing comparisons by tree level for independent searches and recursive partitioning in a tree sized like the 6 GiB evaluation." link="fig-v3-partition-balance.png" >}}
+{{< figure src="fig-v3-partition-balance-col.png" alt="Expected routing comparisons by tree level for independent searches and recursive partitioning in a tree sized like the 6 GiB evaluation." link="fig-v3-partition-balance.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 7. Analytical comparison for 10,000 uniformly distributed begins in a tree sized like the 6 GiB campaign. Most comparisons disappear in the upper levels, where many begins share each node. Recursive partitioning reduces the modelled internal-routing comparisons from 204,286 to 90,463; including the initial searches inside the reached leaves, the reduction is from 258,920 to 144,877. These are routing-key comparisons, not elapsed-time measurements.</em></p>
 
@@ -158,7 +158,7 @@ creates sibling tasks, up to `G` tasks—sixteen in final v3—are resident at o
 and visited in rounds on one non-preemptive thread; further tasks wait until a
 resident slot becomes available.
 
-{{< figure src="fig-v3-task-admission.png" alt="Round-end admission: new right-hand tasks are interleaved after their parents in range order, the first G are admitted into resident records and the rest wait on a pending stack" link="fig-v3-task-admission.png" >}}
+{{< figure src="fig-v3-task-admission-col.png" alt="Round-end admission: new right-hand tasks are interleaved after their parents in range order, the first G are admitted into resident records and the rest wait on a pending stack" link="fig-v3-task-admission.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 9. Round-end admission keeps range order without moving resident tasks. At most `G` traversal tasks occupy resident records. Tasks created during a round wait for its end, when available records admit them in slice order. Existing tasks retain their records and saved state; excess tasks remain pending until a later round releases capacity.</em></p>
 
@@ -204,7 +204,7 @@ hints that dependency, records the state that will consume it and yields.
    the right neighbour and yields; when no unresolved read remains or the leaf
    chain ends, it enters `Done`.
 
-{{< figure src="fig-v3-leaf-scan.png" alt="A leaf scan walks the stored write intervals in key order against a linked list of unresolved reads; decided reads are unlinked without moving their records" link="fig-v3-leaf-scan.png" >}}
+{{< figure src="fig-v3-leaf-scan-col.png" alt="A leaf scan walks the stored write intervals in key order against a linked list of unresolved reads; decided reads are unlinked without moving their records" link="fig-v3-leaf-scan.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 10. A leaf scan keeps only unresolved reads active. Read records remain in their fixed begin-sorted slice, while `nextBegin` links only those whose result is still unknown. Deciding a read unlinks its index without moving the record or changing the task's routing bounds. A separate cursor remembers the prefix of read begins already passed by the advancing stored-interval end.</em></p>
 
@@ -318,10 +318,9 @@ forward-moving mutation order.
 When the read scheduler completes, every write-bearing slice has a prepared-destination record covering the write begins routed with that slice. Leaf tasks finish in whatever order their memory dependencies arrive, so each result is stored in an arrival buffer and the slice's first write records a ticket to it. A write frontier walks the write-bearing slices in begin order and emits only the contiguous prefix whose destinations are known: a slice whose leaf was found early waits for every earlier write-bearing slice, while read-only slices are skipped. An arrival-buffer slot is recycled only after its ticket and every earlier buffer ticket have been released.
 
 {{< figure
-  src="fig-v3-write-frontier.png"
+  src="fig-v3-write-frontier-col.png"
   alt="Write-leaf results arrive out of order and an ordered frontier emits only the known prefix"
-  link="fig-v3-write-frontier.png"
->}}
+  link="fig-v3-write-frontier.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 14. The write frontier. Prepared destinations become known out of begin order, and each write-bearing slice records a ticket to its buffered result. The frontier walks the slices in begin order, emits only the contiguous known prefix and skips read-only slices. An arrival-buffer slot is recycled only after its ticket and every earlier buffer ticket have been released. The emitted destinations remain hints.</em></p>
 
@@ -367,10 +366,9 @@ The first begin of a merged interval retains its prepared destination, and
 groups that currently resolve to the same leaf share one representative.
 
 {{< figure
-  src="fig-v3-accepted-union.png"
+  src="fig-v3-accepted-union-col.png"
   alt="Transaction decisions filter write intervals before overlapping accepted intervals are unioned"
-  link="fig-v3-accepted-union.png"
->}}
+  link="fig-v3-accepted-union.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 15. From decisions to accepted intervals.
 Rejected and too-old transactions drop out; overlapping accepted intervals
@@ -398,10 +396,9 @@ rotate. This gives a task's leaf and key data several intervening visits in
 which to reach the cache before its write turn.
 
 {{< figure
-  src="fig-v3-write-groups.png"
+  src="fig-v3-write-groups-col.png"
   alt="Two groups of cooperative write tasks overlap destination searches with the work of the single writer"
-  link="fig-v3-write-groups.png"
->}}
+  link="fig-v3-write-groups.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 16. Two groups of write tasks on one
 cooperative thread, drawn with four tasks per group for legibility; final v3 uses
@@ -484,10 +481,9 @@ therefore overlaps memory latency while preserving the same serial mutation
 order as the accepted intervals.
 
 {{< figure
-  src="fig-v3-write-task-states.png"
+  src="fig-v3-write-task-states-col.png"
   alt="State machine of a cooperative write task from speculative destination search through insertion and forward erasure"
-  link="fig-v3-write-task-states.png"
->}}
+  link="fig-v3-write-task-states.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 17. The state machine of one write task. Each box gives the conceptual
 operation and the exact implementation states beneath it. Green transitions
@@ -507,19 +503,19 @@ scheduler then wakes its successor.</em></p>
 
 ## Proactive splits and space reservation
 
-{{< figure src="fig-v3-split-conventional.png" alt="In a conventional B+ tree a single leaf insertion can split the leaf, its full parent and further full ancestors in a chain" link="fig-v3-split-conventional.png" >}}
+{{< figure src="fig-v3-split-conventional-col.png" alt="In a conventional B+ tree a single leaf insertion can split the leaf, its full parent and further full ancestors in a chain" link="fig-v3-split-conventional.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 18. Why conventional B+ tree splitting is unsuitable for the write path. In a full path, one leaf insertion can propagate a split through several full ancestors. The number of structural changes and required allocations is then discovered only while the mutation is already in progress.</em></p>
 
 Two mechanisms keep a write's structural cost bounded. The first came with v1: every internal node keeps free child slots for the children that will need to split, maintained as an invariant, so that a write splits at most one existing node and never cascades up a full path. A leaf needs a split when it has at most one free slot, because one write can add its own interval and a surviving right exterior; an internal node needs one when all its free slots are spoken for. The arithmetic that keeps the invariant is small: splitting a child consumes one free slot in the parent and removes one pending split, so the balance is unchanged.
 
-{{< figure src="fig-v3-split-proactive.png" alt="A pending child split has a reserved parent slot, so a write splits at most one existing node" link="fig-v3-split-proactive.png" >}}
+{{< figure src="fig-v3-split-proactive-col.png" alt="A pending child split has a reserved parent slot, so a write splits at most one existing node" link="fig-v3-split-proactive.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 19. Resolver v3 reserves the structural consequence in advance. A child that may need to split already has a free slot reserved in its parent. Triggering the split consumes that slot and may mark the parent as a future split candidate, but the current write splits at most one existing node.</em></p>
 
 The second is the reservation. Before the oldest task mutates, `reserveWrite` checks space for the write's key bytes, up to two leaf slots and the split work it may need, and reclaims the oldest history if the pool lacks it; the reserve is never below 35 blocks and grows with the longest key seen, which is what lets a 30,001-byte system key be stored into a full pool. Only after the reservation holds does the task prepare its split state, reusing the candidate saved during the read phase while its epoch is valid. A reservation that fails throws, and the writes already applied in the call stay applied; the batch is not rolled back.
 
-{{< figure src="fig-v3-reserve-before-mutate.png" alt="The oldest write task reserves pool space before mutation and restarts destination inspection if reservation reclaims history" link="fig-v3-reserve-before-mutate.png" >}}
+{{< figure src="fig-v3-reserve-before-mutate-col.png" alt="The oldest write task reserves pool space before mutation and restarts destination inspection if reservation reclaims history" link="fig-v3-reserve-before-mutate.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 20. Reserve before mutate. With room in the pool the validated position is used; when reclaiming was needed, the destination, its generation or the cutoff may have changed and the task inspects again. Split state is prepared only after the reservation holds.</em></p>
 
@@ -554,7 +550,7 @@ subtree and key block reclaimable at that version, not just the first object
 found. The mixed-age node with maximum CV 408 survives, but its entries at or
 below 403 are compacted and only its newer history remains.
 
-{{< figure src="fig-v3-reclamation-by-cv.png" alt="Version-wide reclamation from the node and key-block lists" link="fig-v3-reclamation-by-cv.png" >}}
+{{< figure src="fig-v3-reclamation-by-cv-col.png" alt="Version-wide reclamation from the node and key-block lists" link="fig-v3-reclamation-by-cv.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 22. Version-wide reclamation from two independently allocated stores.
 Each shortage compares the reclamation CVs at the two list heads. Once a CV is
@@ -589,7 +585,7 @@ V3.8 addresses this by allowing the pool to be backed by explicit 2 MiB HugeTLB 
 
 `RESOLVER1_PAGE_MODE` selects the backing when the pool is constructed: ordinary heap allocation, advised 4 KiB pages, transparent huge pages, or explicit HugeTLB pages taken from the operating system's reserved pool. Transparent huge pages are opportunistic and provide no coverage guarantee. Explicit HugeTLB makes the choice deterministic and visible: if the reserved pool cannot satisfy the mapping, construction fails rather than silently falling back to smaller pages.
 
-{{< figure src="fig-v3-hugetlb.png" alt="One shared pool with four backing modes: logical 64 KiB pages contain reusable 2 KiB blocks, while HugeTLB can map the pool using 2 MiB pages" link="fig-v3-hugetlb.png" >}}
+{{< figure src="fig-v3-hugetlb-col.png" alt="One shared pool with four backing modes: logical 64 KiB pages contain reusable 2 KiB blocks, while HugeTLB can map the pool using 2 MiB pages" link="fig-v3-hugetlb.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 23. One pool, four memory backings. The geometry, the free list and the budget do not depend on the backing; the number of page mappings that cover the pool does, and with it the translation cost of random accesses.</em></p>
 
@@ -599,7 +595,7 @@ V3.8 addresses this by allowing the pool to be backed by explicit 2 MiB HugeTLB 
 
 Memory behaviour is part of the result rather than incidental testbed detail. The same single-threaded Resolver was therefore evaluated on two Linux processors with materially different cache, SMT and memory organizations. Each timed benchmark process was pinned to one physical core; the remaining cores provided no parallelism to the measured Resolver operation. Figure 24 reports the controlled campaign setup and the dependent-pointer latency measured on both testbeds. Figure 25 then expands the two cache and package organizations, separating properties recorded by the campaigns from details taken from the vendors' published microarchitectures.
 
-{{< figure src="fig-v3-memory-testbeds.png" alt="Two controlled Resolver testbeds: an Intel Core Ultra 9 285K and an AMD Ryzen 7 7700, their recorded cache, memory and execution configurations, and the dependent-pointer latency measured on both, from 0.70 to 163.23 nanoseconds per access on Intel and 0.75 to 103.83 on AMD" link="fig-v3-memory-testbeds.png" >}}
+{{< figure src="fig-v3-memory-testbeds-col.png" alt="Two controlled Resolver testbeds: an Intel Core Ultra 9 285K and an AMD Ryzen 7 7700, their recorded cache, memory and execution configurations, and the dependent-pointer latency measured on both, from 0.70 to 163.23 nanoseconds per access on Intel and 0.75 to 103.83 on AMD" link="fig-v3-memory-testbeds.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 24. Two contrasting memory systems and their measured dependent-access latency. The same byte-identical pointer-chase binary runs pinned to one core on both machines, with one dependent pointer per 64-byte line, ordinary 4 KiB pages, no software prefetch and five timed repetitions per working-set size. At 26.9 KiB the processors are close; at 45.3 KiB Intel remains within its 48 KiB L1 while AMD has exceeded its 32 KiB L1; at 1 MiB Intel is faster; and at 16 and 512 MiB AMD has the lower serial access latency. The 512 MiB-to-L1 increase is 231.9× on Intel and 137.9× on AMD. The AMD 1 MiB value is from the preselected primary process; complete-process medians ranged from 5.49 to 6.42 ns.</em></p>
 
@@ -615,7 +611,7 @@ The AMD 1 MiB point is less stable across process launches than the other select
 
 The contrast is structural rather than merely a difference in cache capacity. The timed Intel P-core traverses a two-stage private data-cache hierarchy before its private L2 and the compute tile's shared L3. The AMD core has a conventional private L1 and L2 followed by the CCD's shared L3. In both processors, an access that reaches DRAM must leave the die containing the timed core. The same irregular tree access can therefore encounter different cache residency, sharing, translation and prefetch timing on the two systems.
 
-{{< figure src="fig-v3-memory-hierarchies.png" alt="The cache and package memory hierarchies of the Intel Core Ultra 9 285K and AMD Ryzen 7 7700 testbeds, showing the private caches of the timed core, shared last-level caches, separate memory-controller dies and DRAM" link="fig-v3-memory-hierarchies.png" >}}
+{{< figure src="fig-v3-memory-hierarchies-col.png" alt="The cache and package memory hierarchies of the Intel Core Ultra 9 285K and AMD Ryzen 7 7700 testbeds, showing the private caches of the timed core, shared last-level caches, separate memory-controller dies and DRAM" link="fig-v3-memory-hierarchies.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 25. Where the Resolver's bytes can reside on the two testbeds. A cache drawn inside a core is private to it; an enclosing cache is shared by the cores it contains, and × n denotes replicated units. Only the highlighted core executes the timed Resolver. Campaign-recorded properties are distinguished from cache and package structure taken from the vendors' published microarchitectures. Intel's 48 KiB DL0, 192 KiB DL1 and private 3 MiB L2 lead to a 36 MiB L3 shared across the compute tile; AMD's private 32 KiB L1 data cache and 1 MiB L2 lead to a 32 MiB L3 shared by the eight-core CCD. Both processors place the memory controller outside the die containing the timed core.</em></p>
 
