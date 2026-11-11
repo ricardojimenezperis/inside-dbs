@@ -9,3 +9,15 @@
 @media (max-width: 640px) {
   .logo a { font-size: 17px; white-space: nowrap; }
 }
+
+/* Figures drawn on a wide canvas break out of the text column on wide screens so their labels stay legible;
+   figures drawn at column width carry class="col" and stay in the column. */
+@media (min-width: 1180px) {
+  .post-content figure:not(.col):not(.stage) {
+    width: min(1100px, calc(100vw - 80px));
+    position: relative; left: 50%; transform: translateX(-50%);
+  }
+}
+.post-content figure a { cursor: zoom-in; }
+/* Long display formulas scroll inside their own box instead of widening the page on phones. */
+.post-content .katex-display { overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; }

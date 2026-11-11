@@ -134,7 +134,7 @@ Recursive partitioning reduces the cost of routing one sorted batch. The Resolve
 
 Both types participate in partitioning and determine which slices reach each child. At a leaf, the task checks the eligible reads against conflict history and records the destination of the slice's first write. A write begin is a routing item: it receives no read-conflict result, and no write is applied during `checkReads`. Read-only slices produce no write destination; write-only slices still benefit from the same batched descent.
 
-{{< figure src="fig-v3-mixed-descent.png" alt="Read and write begins are recursively partitioned together; leaf tasks check reads and record write destinations." link="fig-v3-mixed-descent.png" >}}
+{{< figure src="fig-v3-mixed-descent-col.png" alt="Read and write begins are recursively partitioned together; leaf tasks check reads and record write destinations." link="fig-v3-mixed-descent.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 8. One mixed descent. Read begins (R) and write begins (W) are partitioned together. At a leaf, reads are checked and the slice's first write destination is recorded. Write begins receive no conflict result, and nothing is applied during this phase.</em></p>
 
@@ -524,7 +524,7 @@ The second is the reservation. Before the oldest task mutates, `reserveWrite` ch
 
 Destinations are validated because the writes before a given one can change its leaf, and reservation can reclaim it. Final v3 saves the destination leaf generation and mutation epoch with every rank. A rank is reusable only if the same leaf generation still occupies the block and that leaf has not mutated; otherwise the task searches again. Node and key-block generation values are disjoint, so a block reclaimed as a node and reused for keys cannot accidentally satisfy the leaf check. A split can also move the insertion point beyond the leaf's new upper boundary, in which case a right-neighbour check moves the search to the new right leaf. Figure 21 shows these cases.
 
-{{< figure src="fig-v3-destination-validation.png" alt="A write task validates its speculative destination before reusing a saved search position or following a changed leaf boundary" link="fig-v3-destination-validation.png" >}}
+{{< figure src="fig-v3-destination-validation-col.png" alt="A write task validates its speculative destination before reusing a saved search position or following a changed leaf boundary" link="fig-v3-destination-validation.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 21. Validating a destination. A still-valid generation and mutation epoch allow the saved rank to be reused. A mutation, reclamation or cross-role block reuse forces a new search; a split that moved the insertion point past the leaf's new boundary sends the write to the right neighbour.</em></p>
 
@@ -654,7 +654,7 @@ Retention is the primary result. Under the same 6 GiB budget, FoundationDB's cal
 
 The resulting retained window is **2.20× FoundationDB's for the same memory budget**. This capacity gain comes from the temporal representation and budgeted reclamation introduced in v1. V2 and final v3 preserve the same retention behaviour while reducing the CPU cost of maintaining it.
 
-{{< figure src="fig-v3-retention.png" alt="Retained history under a 6 GiB budget: FoundationDB 265 seconds, final v3 at least 582.9 seconds in the measured tail" link="fig-v3-retention.png" >}}
+{{< figure src="fig-v3-retention.png" alt="Retained history under a 6 GiB budget: FoundationDB 265 seconds, final v3 at least 582.9 seconds in the measured tail" link="fig-v3-retention.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 26. History retained under the same 6 GiB budget. FoundationDB's window is calibrated to 265 seconds; final v3 retains 582.9–584.7 seconds in the measured tail, or 2.20× FoundationDB's window. Its boundary first advances at batch 22,492, about 703 seconds. V1 and v2 follow the same retention curve and are omitted because their identical bars add no information.</em></p>
 
@@ -670,7 +670,7 @@ Each milestone attacks a different part of the cost.
 
 The final long-trace campaign compares FDB and v3 directly; it does not contain new v1 or v2 arms, so the evolution figure does not carry the older cross-session long-trace ratios forward.
 
-{{< figure src="fig-v3-evolution.png" alt="Final-session time of v1, v2 and final v3 on Intel across six short workloads, normalized to v1" link="fig-v3-evolution.png" >}}
+{{< figure src="fig-v3-evolution.png" alt="Final-session time of v1, v2 and final v3 on Intel across six short workloads, normalized to v1" link="fig-v3-evolution.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 27. Evolution from v1 to final v3 in the paired Intel short-benchmark session, normalized to v1. V2 primarily removes repeated read-side traversal work; v3 additionally removes the second write descent and overlaps write-path memory latency. The long trace is omitted because its final campaign contains only FDB and v3.</em></p>
 
@@ -684,9 +684,9 @@ On AMD, final v3 takes 0.95–1.01× FoundationDB across seven `skiplisttest` la
 
 The result is therefore not a universal speedup claim. It is that the Resolver retains **2.20× more history** while taking less time on most Intel paths; on AMD the result depends on workload, with `skiplisttest` and integrated ranges near FoundationDB and three slower workloads identified explicitly.
 
-{{< figure src="fig-v3-vs-fdb.png" alt="Final v3 time relative to FoundationDB on Intel and AMD across six workloads, with equal cost marked at 1.0 and no AMD long-trace ratio inferred" link="fig-v3-vs-fdb.png" >}}
+{{< figure src="fig-v3-vs-fdb.png" alt="Final v3 time relative to FoundationDB on Intel and AMD across six workloads, with equal cost marked at 1.0 and no AMD long-trace ratio inferred" link="fig-v3-vs-fdb.png" class="col" >}}
 
-<p class="figure-caption"><em>Figure 28. Final v3 time relative to FoundationDB in the paired Intel and AMD sessions; lower is better. The vertical line marks equal cost and `skiplisttest` shows the range across all seven key layouts. AMD's long trace is marked N/A because its single pair supports correctness and retention replication, not a timing inference.</em></p>
+<p class="figure-caption"><em>Figure 28. Final v3 time relative to FoundationDB in the paired Intel and AMD sessions; lower is better. The vertical line marks equal cost; for `skiplisttest` the bar reaches the fastest of the seven key layouts and the note gives the slowest. AMD's long trace carries no ratio because its single pair supports correctness and retention replication, not a timing inference.</em></p>
 
 ### How to read the ratios
 
