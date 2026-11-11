@@ -251,18 +251,19 @@ which is why interleaving can hide memory latency even on a single thread.
 Prefetch remains advisory: correctness does not depend on a hinted line having
 arrived or still being cached when the task resumes.
 
-{{< figure src="fig-v3-key-prefetch.png" alt="A stored key is hinted with at most two cache-line prefetches in its first block; a key that continues through a linked block has its continuation line hinted after the reference is validated" link="fig-v3-key-prefetch.png" >}}
+{{< figure src="fig-v3-key-prefetch-col.png" alt="A stored key is hinted with at most two cache-line prefetches in its first block; a key that continues through a linked block has its continuation line hinted after the reference is validated" link="fig-v3-key-prefetch.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 11. Hinting a stored key without walking it synchronously. The first key block is hinted with at most two cache-line prefetches. A short key can then be compared directly; when the stored key continues through linked blocks, `KeyMore` saves the interrupted state, hints the next block, yields and later returns control to the comparison it was serving.</em></p>
 
 {{< figure
-  src="fig-v3-single-dispatch.svg"
+  src="fig-v3-single-dispatch-col.png"
   alt="Cooperative traversal tasks consume previously hinted memory accesses, advance through resumable states and prefetch their next dependencies before yielding"
   link="fig-v3-single-dispatch.svg"
+  class="col"
 >}}
 
 <p class="figure-caption"><em>Figure 12. One dispatch per task visit. Dashed
-arrows are prefetch hints and solid arrows are the visits that consume them.
+arrows are prefetch hints, each consumed on the same task's next visit.
 New right-hand tasks become eligible for admission at the end of the round. A
 task scans a whole leaf in one visit, then hints the next leaf and
 yields.</em></p>
@@ -286,7 +287,7 @@ child still contains live history. The separator's version is therefore
 checked before its key is hinted. If it has expired, the separator is refreshed
 from the child's first live entry before any task reads the referenced bytes.
 
-{{< figure src="fig-v3-read-maintenance.png" alt="Two panels: a leaf is compacted once per read batch and stamped before any task saves a rank into it; an expired internal separator is refreshed from the child's first live entry before its key bytes are hinted" link="fig-v3-read-maintenance.png" >}}
+{{< figure src="fig-v3-read-maintenance-col.png" alt="Two panels: a leaf is compacted once per read batch and stamped before any task saves a rank into it; an expired internal separator is refreshed from the child's first live entry before its key bytes are hinted" link="fig-v3-read-maintenance.png" class="col" >}}
 
 <p class="figure-caption"><em>Figure 13. Read-phase maintenance preserves saved ranks and prevents stale key dereferences. A leaf is compacted at most once per read batch, before any task saves a rank into it. Separately, an internal separator is checked by version before its referenced bytes are hinted; an expired separator is rebuilt from the child's first live entry.</em></p>
 
