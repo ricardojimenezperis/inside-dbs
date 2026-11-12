@@ -2,12 +2,12 @@
 title = "Resolver v3: a temporal B+ tree for FoundationDB's conflict history, from routing to reclamation"
 seoTitle = "FoundationDB Resolver v3: Budgeted Conflict History"
 date = "2026-11-06"
-lastmod = "2026-11-09"
+lastmod = "2026-11-12"
 draft = false
 description = "Final Resolver v3 retains 2.20× more FoundationDB conflict history in the same 6 GiB, with the stale-rank fix, 232 tests and final Intel and AMD evaluation."
 summary = """FoundationDB rejects a transaction once its read version is more than five seconds old because the resolver keeps only that much write history. Resolver v3 replaces that history with a temporal B+ tree under a memory budget and processes each batch in two phases: one descent routes every read and write begin together and checks the reads, then the accepted writes are applied in key order by cooperative tasks that search and prefetch ahead of a single writer.
 
-**Under the same 6 GiB budget, final v3 retains 582.9–584.7 seconds of conflict history in the measured tail—2.20× FoundationDB's calibrated 265-second window.** The 5,400-second trace replays in 0.77× FoundationDB's time in two Intel pairs. AMD reproduces every decision and the same retention curve; its single pair is not used to infer a performance ratio. Every published v3 performance run verifies that the complete pool is in HugeTLB pages."""
+**Under the same 6 GiB budget, final v3 retains 582.9–584.7 seconds of conflict history in the measured tail—2.20× FoundationDB's calibrated 265-second window.** The 5,400-second trace replays in 0.77× FoundationDB's time on Intel and 0.94× on AMD, each the median of two opposite-order pairs, with every decision and the same retention curve on both machines. Every published v3 performance run verifies that the complete pool is in HugeTLB pages."""
 tags = ["foundationdb", "resolver", "b+ tree", "prefetching", "transactions", "beyond-5s"]
 series = ["FoundationDB", "Beyond 5s"]
 channels = ["linkedin", "fdb-forum", "medium", "dev"]
@@ -24,7 +24,7 @@ FoundationDB decides whether a transaction commits by checking its reads against
 
 Beyond 5s replaces that history with a structure bounded by memory instead of time. This post describes the resolver that results after three milestones, as one design: first the four design pillars it rests on, then the structure that stores write-conflict intervals under a budget, the way a batch of reads is checked through it, the way the batch's accepted writes are applied, and what the measurements say. The earlier posts on [v1](https://github.com/ricardojimenezperis/fdb-beyond-5s/tree/main/resolver/v1) and [v2](https://github.com/ricardojimenezperis/fdb-beyond-5s/tree/main/resolver/v2) tell how the pieces arrived; this one tells how they fit. Every mechanism described here is present in the [v3 snapshot](https://github.com/ricardojimenezperis/fdb-beyond-5s/tree/main/resolver/v3), whose design document records the invariants and twenty-one implementation figures; this article adds seven explanatory figures carried forward from v1 and v2.
 
-> **Results at a glance.** *Retention:* under the same 6 GiB budget, final v3 retains 582.9–584.7 seconds in the measured tail, 2.20× FoundationDB's calibrated 265-second window. *Intel:* the 5,400-second trace replays in 0.77× FoundationDB's time; the paired short session gives 0.81× in `conflictset` points, 0.92× in integrated ranges and 0.74–0.91× across seven `skiplisttest` layouts, with integrated points level at 1.00× and `conflictset` ranges slower at 1.12×. *AMD:* `skiplisttest` spans 0.95–1.01× and integrated ranges is 0.99×; points, `conflictset` ranges and integrated points are slower at 1.05×, 1.29× and 1.32×. AMD's one long-trace pair validates decisions and retention but supports no timing ratio. Final v3 uses its published HugeTLB configuration; the other implementations use their native ordinary-memory configurations.
+> **Results at a glance.** *Retention:* under the same 6 GiB budget, final v3 retains 582.9–584.7 seconds in the measured tail, 2.20× FoundationDB's calibrated 265-second window. *Intel:* the 5,400-second trace replays in 0.77× FoundationDB's time; the paired short session gives 0.81× in `conflictset` points, 0.92× in integrated ranges and 0.74–0.91× across seven `skiplisttest` layouts, with integrated points level at 1.00× and `conflictset` ranges slower at 1.12×. *AMD:* the 5,400-second trace replays in 0.94× FoundationDB's time; `skiplisttest` spans 0.95–1.01× and integrated ranges is 0.99×; points, `conflictset` ranges and integrated points are slower at 1.05×, 1.29× and 1.32×. Final v3 uses its published HugeTLB configuration; the other implementations use their native ordinary-memory configurations.
 
 *Figures can be opened at full resolution by clicking them.*
 
@@ -605,7 +605,7 @@ The ordering reverses for larger working sets. At 16 MiB, with a working set tha
 
 This difference is consistent with the Resolver's cross-machine behaviour. Cooperative scheduling has a fixed cost in task state, dispatch, branches and instructions, and it increases the set of leaves, keys and task records that are live between a prefetch and its use. Intel's larger private caches provide more room for that active set, while its much higher large-working-set latency leaves more time and more cost for recursive partitioning and cooperative prefetching to remove or hide. On AMD, the smaller private caches leave less capacity in which prefetched data can survive the intervening visits, while a miss that reaches the shared cache or DRAM is cheaper. This combination would give the scheduler both less far-memory latency to hide and less private-cache headroom with which to hide it. The pointer-chase measurements are consistent with that interpretation, although they do not measure prefetch survival directly.
 
-That combination provides a plausible explanation for the observed pattern: final v3 obtains its clearest gains on Intel, while AMD's short workloads cluster closer to FoundationDB except for the integrated point and `conflictset` range regressions. The final AMD long trace is a correctness and retention replica, not a timing conclusion. The pointer chase does not, by itself, explain the `conflictset` range result. That workload commits only 16.5% of its transactions, so FoundationDB's ability to terminate after an early conflict remains an independent algorithmic advantage. Nor does the pointer chase prove causality: it permits only one outstanding dependent access and uses ordinary 4 KiB pages, whereas final v3 interleaves several tasks and maps its pool with HugeTLB. Establishing the complete attribution would require paired measurements of cache residency, load waits, prefetch timeliness, branch behaviour and CPU-frontend starvation.
+That combination provides a plausible explanation for the observed pattern: final v3 obtains its clearest gains on Intel, while AMD's short workloads cluster closer to FoundationDB except for the integrated point and `conflictset` range regressions. On the long trace final v3 takes 0.94× FoundationDB's time on AMD, against 0.77× on Intel; on AMD its read phase takes about 2.2× FoundationDB's, and why reads weigh more there has not been measured. The pointer chase does not, by itself, explain the `conflictset` range result. That workload commits only 16.5% of its transactions, so FoundationDB's ability to terminate after an early conflict remains an independent algorithmic advantage. Nor does the pointer chase prove causality: it permits only one outstanding dependent access and uses ordinary 4 KiB pages, whereas final v3 interleaves several tasks and maps its pool with HugeTLB. Establishing the complete attribution would require paired measurements of cache residency, load waits, prefetch timeliness, branch behaviour and CPU-frontend starvation.
 
 The AMD 1 MiB point is less stable across process launches than the other selected sizes. The preselected primary process measured 6.28 ns, while the medians of five complete processes ranged from 5.49 to 6.42 ns. The cause was not established; physical-page placement is consistent with the observation but was not controlled or recorded. The figure reports the primary process and exposes the cross-process range.
 
@@ -677,17 +677,17 @@ The final design obtains the additional history at a similar or lower processing
 
 On Intel, final v3 takes 0.81× FoundationDB's time for `conflictset` points, 0.74–0.91× across seven `skiplisttest` layouts and 0.77× on the long trace. Integrated points is level at 1.00×, integrated ranges takes 0.92× and `conflictset` ranges is slower at 1.12×.
 
-On AMD, final v3 takes 0.95–1.01× FoundationDB across seven `skiplisttest` layouts and 0.99× in integrated ranges. It is slower in `conflictset` points at 1.05×, integrated points at 1.32× and `conflictset` ranges at 1.29×. The AMD long trace has one measured pair: its times are published, but no performance ratio is inferred from a single pair.
+On AMD, final v3 takes 0.95–1.01× FoundationDB across seven `skiplisttest` layouts and 0.99× in integrated ranges. It is slower in `conflictset` points at 1.05×, integrated points at 1.32× and `conflictset` ranges at 1.29×. On the long trace it takes 0.94×, the median of two opposite-order pairs that differ by 0.67%.
 
-The result is therefore not a universal speedup claim. It is that the Resolver retains **2.20× more history** while taking less time on most Intel paths; on AMD the result depends on workload, with `skiplisttest` and integrated ranges near FoundationDB and three slower workloads identified explicitly.
+The result is therefore not a universal speedup claim. It is that the Resolver retains **2.20× more history** while taking less time on most Intel paths; on AMD the result depends on workload, with the long trace at 0.94×, `skiplisttest` and integrated ranges near FoundationDB and three slower workloads identified explicitly.
 
-{{< figure src="fig-v3-vs-fdb.png" alt="Final v3 time relative to FoundationDB on Intel and AMD across six workloads, with equal cost marked at 1.0 and no AMD long-trace ratio inferred" link="fig-v3-vs-fdb.png" class="col" >}}
+{{< figure src="fig-v3-vs-fdb.png" alt="Final v3 time relative to FoundationDB on Intel and AMD across six workloads, with equal cost marked at 1.0" link="fig-v3-vs-fdb.png" class="col" >}}
 
-<p class="figure-caption"><em>Figure 28. Final v3 time relative to FoundationDB in the paired Intel and AMD sessions; lower is better. The vertical line marks equal cost; for `skiplisttest` the bar reaches the fastest of the seven key layouts and the note gives the slowest. AMD's long trace carries no ratio because its single pair supports correctness and retention replication, not a timing inference.</em></p>
+<p class="figure-caption"><em>Figure 28. Final v3 time relative to FoundationDB in the paired Intel and AMD sessions; lower is better. The vertical line marks equal cost; for `skiplisttest` the bar reaches the fastest of the seven key layouts and the note gives the slowest. On each machine the long trace is the median of two opposite-order pairs.</em></p>
 
 ### How to read the ratios
 
-The final short benchmarks measure FDB, v1, v2 and v3 in one rotated session per machine. The Intel long trace uses two FDB/v3 pairs; the AMD replica has one. Final v3 uses its published HugeTLB-backed pool, while FDB, v1 and v2 use their native ordinary-memory implementations. The ratios therefore compare deployed configurations rather than isolating page mode. The short tables report the minimum and maximum of five paired ratios, not confidence intervals; no sub-1% difference is attributed to code.
+The final short benchmarks measure FDB, v1, v2 and v3 in one rotated session per machine. On each machine the long trace is a separate session of two FDB/v3 pairs in opposite orders. Final v3 uses its published HugeTLB-backed pool, while FDB, v1 and v2 use their native ordinary-memory implementations. The ratios therefore compare deployed configurations rather than isolating page mode. The short tables report the minimum and maximum of five paired ratios, not confidence intervals; no sub-1% difference is attributed to code.
 
 ## What was tried and set aside
 
@@ -725,7 +725,8 @@ write rank carried neither the identity nor the revision of its leaf, so a
 rank prepared during the read phase could be reused after pressure reclamation
 had freed the leaf and the pool had handed its block to another role. In a
 two-page pool the regression case loses 60 accepted writes with 2×8 write
-tasks and aborts at commit version 21 with 2×4; the block-size sweep finds 17
+tasks and aborts at commit version 21 with 2×4; a sweep of 1 to 400 writes after
+the history finds 17
 bad sizes under 2×8 and all 400 configurations aborting under 2×4, with the
 same outcomes in assertion, optimized and sanitizer builds. The correctness fix
 `f866c98d` saves the leaf generation and mutation epoch with every rank and

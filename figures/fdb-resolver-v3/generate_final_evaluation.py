@@ -169,7 +169,7 @@ def vs_fdb():
 
     rows = ["conflictset points", "conflictset ranges", "integrated points", "integrated ranges", "skiplisttest", "long trace"]
     intel = [0.8078, 1.1238, 0.9989, 0.9154, (0.7354, 0.9103), 0.7723]
-    amd = [1.0515, 1.2867, 1.3237, 0.9899, (0.9531, 1.0099), None]
+    amd = [1.0515, 1.2867, 1.3237, 0.9899, (0.9531, 1.0099), 0.9407]
     panels = [
         ("Intel Core Ultra 9 285K", 180, 1290, intel),
         ("AMD Ryzen 7 7700", 1450, 2470, amd),
@@ -222,7 +222,7 @@ def vs_fdb():
         (155, 1217),
         "On Intel final v3 is faster in conflictset points, integrated ranges, all seven skiplist layouts and the long trace; integrated points is level and conflictset ranges is slower. "
         "On AMD it is within about ±5% of FDB in skiplisttest and integrated ranges, and slower in conflictset points, conflictset ranges and integrated points. "
-        "The AMD long trace reproduces decisions and retention with one pair, so its two observed times are published without inferring a performance ratio.",
+        "The long trace takes 0.77× on Intel and 0.94× on AMD, each the median of two opposite-order pairs.",
         24,
         2210,
     )
